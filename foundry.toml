@@ -2,5 +2,13 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-
+libraries = []
+optimizer = true
+optimizer_runs = 20
+remappings = [
+  '@openzeppelin/contracts=lib/openzeppelin-contracts/contracts',
+  '@ds-test=lib/ds-test/src/',
+  '@std=lib/forge-std/src/',
+]
+verbosity = 0
 # See more config options https://github.com/foundry-rs/foundry/tree/master/crates/config
