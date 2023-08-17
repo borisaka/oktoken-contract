@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {Test, console2} from "forge-std/Test.sol";
 import {OkToken} from "../src/OkToken.sol";
 
-contract CounterTest is Test {
+contract OkTokenTest is Test {
     OkToken public token;
     address public user;
     function setUp() public {
