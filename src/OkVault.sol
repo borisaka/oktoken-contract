@@ -5,27 +5,31 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {OkToken} from "./OkToken.sol";
 
-contract OKVault is ReentrancyGuard {
-    IERC20 private usdtContract;
-    OkToken private okTokenContract;
+contract OkVault is ReentrancyGuard {
+    IERC20 private _usdtContract;
+    OkToken private _okTokenContract;
 
-    address private immutable creatorAddress;
+    address private immutable _creatorAddress;
 
-    uint256 public constant feePercentage = 10;
+    uint256 public constant FEE_PERCENTAGE = 10;
     uint256 public exchangeRate = 1e6;
 
     event Deposit(address indexed user, uint256 amount);
     event Withdraw(address indexed user, uint256 amount);
 
-    constructor(address _usdtAddress, address _okTokenAddress, address _creatorAddress) {
-        usdtContract = IERC20(_usdtAddress);
-        okTokenContract = OkToken(_okTokenAddress);
-        creatorAddress = _creatorAddress;
+    constructor(address _usdtAddress, address creatorAddress) {
+        _okTokenContract = new OkToken(address(this));
+        _usdtContract = IERC20(_usdtAddress);
+        _creatorAddress = creatorAddress;
         exchangeRate = getRate();
     }
 
+    function getOkTokenAddress() public view returns (address) {
+        return address(_okTokenContract);
+    }
+
     function getRate() public view returns (uint256 rate) {
-        uint256 usdtBalance = usdtContract.balanceOf(address(this));
+        uint256 usdtBalance = _usdtContract.balanceOf(address(this));
         uint256 totalSupply = _totalSupply();
         rate = 1e6;
         if (totalSupply != 0 || usdtBalance != 0) {
@@ -35,18 +39,18 @@ contract OKVault is ReentrancyGuard {
 
     function deposit(uint256 amount) external nonReentrant {
         require(amount >= 5 * 1e6, "Amount must be greater than 5 usdt");
-        require(usdtContract.balanceOf(msg.sender) >= amount, "Insufficient balance");
+        require(_usdtContract.balanceOf(msg.sender) >= amount, "Insufficient balance");
 
-        uint256 fee = ((amount * feePercentage) / 100);
+        uint256 fee = ((amount * FEE_PERCENTAGE) / 100);
         uint256 userAmount = amount - fee;
         // transfer usdt from user to vault
-        usdtContract.transferFrom(msg.sender, address(this), amount);
+        _usdtContract.transferFrom(msg.sender, address(this), amount);
         // transfer fee, 5% to creator and 5% to vault  
-        usdtContract.transfer(creatorAddress, fee / 2);
+        _usdtContract.transfer(_creatorAddress, fee / 2);
         // calculate okTokens to mint
         uint256 okTokensToMint = (userAmount * 1e18) / exchangeRate;
         // mint okTokens to user
-        okTokenContract.mint(msg.sender, okTokensToMint);
+        _okTokenContract.mint(msg.sender, okTokensToMint);
         // update exchange rate after minting
         exchangeRate = getRate();
 
@@ -55,17 +59,17 @@ contract OKVault is ReentrancyGuard {
 
     function withdraw(uint256 amount) external nonReentrant {
         require(amount >= 5 * 1e6, "Amount must be greater than 5 usdt");
-        require(okTokenContract.balanceOf(msg.sender) >= amount, "Insufficient balance");
+        require(_okTokenContract.balanceOf(msg.sender) >= amount, "Insufficient balance");
         require(_totalSupply() >= amount, "Insufficient total supply");
 
         uint256 usdtAmount = (amount * exchangeRate) / 1e18;
-        uint256 fee = (usdtAmount * feePercentage) / 100;
+        uint256 fee = (usdtAmount * FEE_PERCENTAGE) / 100;
         uint256 usdtAmountToTransfer = usdtAmount - fee;
 
-        usdtContract.transfer(creatorAddress, fee / 2);
-        usdtContract.transfer(msg.sender, usdtAmountToTransfer);
+        _usdtContract.transfer(_creatorAddress, fee / 2);
+        _usdtContract.transfer(msg.sender, usdtAmountToTransfer);
 
-        okTokenContract.burn(msg.sender, amount);
+        _okTokenContract.burn(msg.sender, amount);
 
         exchangeRate = getRate();
 
@@ -73,6 +77,6 @@ contract OKVault is ReentrancyGuard {
     }
 
     function _totalSupply() internal view returns (uint256) {
-        return okTokenContract.totalSupply();
+        return _okTokenContract.totalSupply();
     }
 }

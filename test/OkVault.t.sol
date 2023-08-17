@@ -4,11 +4,12 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {OkToken} from "../src/OkToken.sol";
-import {OKVault} from "../src/OKVault.sol";
+import {OkVault} from "../src/OkVault.sol";
 import {MockERC20} from "./MockERC20.sol";
+import {console} from "forge-std/Script.sol";
 
 contract OkVaultTest is Test {
-    OKVault public vault;
+    OkVault public vault;
     OkToken public token;
     MockERC20 public usdt;
     address public alice;
@@ -21,9 +22,8 @@ contract OkVaultTest is Test {
         alice = address(0x1);
 
         usdt = new MockERC20();
-        token = new OkToken(address(this));
-        vault = new OKVault(address(usdt), address(token), creator);
-        token.transferOwnership(address(vault));
+        vault = new OkVault(address(usdt), creator);
+        token = OkToken(vault.getOkTokenAddress());
     }
 
     function test_getRate() public {
