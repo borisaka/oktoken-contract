@@ -1,25 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "./OkToken.sol";
-import "forge-std/Console.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {OkToken} from "./OkToken.sol";
 
 contract OKVault is ReentrancyGuard {
-    IERC20 public usdtContract;
-    OkToken public okTokenContract;
+    IERC20 private usdtContract;
+    OkToken private okTokenContract;
 
-    address public immutable creatorAddress;
+    address private immutable creatorAddress;
 
     uint256 public constant feePercentage = 10;
     uint256 public exchangeRate = 1e6;
 
     event Deposit(address indexed user, uint256 amount);
     event Withdraw(address indexed user, uint256 amount);
-
-    using Strings for uint256;
 
     constructor(address _usdtAddress, address _okTokenAddress, address _creatorAddress) {
         usdtContract = IERC20(_usdtAddress);
@@ -30,27 +26,26 @@ contract OKVault is ReentrancyGuard {
 
     function getRate() public view returns (uint256 rate) {
         uint256 usdtBalance = usdtContract.balanceOf(address(this));
-        uint256 totalSupply = okTokenContract.totalSupply();
+        uint256 totalSupply = _totalSupply();
         rate = 1e6;
-        console.log("usdtBalance: %s", usdtBalance.toString());
-        console.log("totalSupply: %s", totalSupply.toString());
         if (totalSupply != 0 || usdtBalance != 0) {
             rate = (usdtBalance * 1e18) / totalSupply;
         }
-        console.log("rate: %s", rate.toString());
     }
 
-    function deposit(uint256 amount) public nonReentrant {
+    function deposit(uint256 amount) external nonReentrant {
         require(amount >= 5 * 1e6, "Amount must be greater than 5 usdt");
+        require(usdtContract.balanceOf(msg.sender) >= amount, "Insufficient balance");
 
         uint256 fee = ((amount * feePercentage) / 100);
         uint256 userAmount = amount - fee;
-        console.log("fee: %s", fee.toString());
-        console.log("userAmount: %s", userAmount.toString());
+        // transfer usdt from user to vault
         usdtContract.transferFrom(msg.sender, address(this), amount);
+        // transfer fee, 5% to creator and 5% to vault  
         usdtContract.transfer(creatorAddress, fee / 2);
-
+        // calculate okTokens to mint
         uint256 okTokensToMint = (userAmount * 1e18) / exchangeRate;
+        // mint okTokens to user
         okTokenContract.mint(msg.sender, okTokensToMint);
         // update exchange rate after minting
         exchangeRate = getRate();
@@ -58,8 +53,11 @@ contract OKVault is ReentrancyGuard {
         emit Deposit(msg.sender, amount);
     }
 
-    function withdraw(uint256 amount) public nonReentrant {
+    function withdraw(uint256 amount) external nonReentrant {
         require(amount >= 5 * 1e6, "Amount must be greater than 5 usdt");
+        require(okTokenContract.balanceOf(msg.sender) >= amount, "Insufficient balance");
+        require(_totalSupply() >= amount, "Insufficient total supply");
+
         uint256 usdtAmount = (amount * exchangeRate) / 1e18;
         uint256 fee = (usdtAmount * feePercentage) / 100;
         uint256 usdtAmountToTransfer = usdtAmount - fee;
@@ -72,5 +70,9 @@ contract OKVault is ReentrancyGuard {
         exchangeRate = getRate();
 
         emit Withdraw(msg.sender, amount);
+    }
+
+    function _totalSupply() internal view returns (uint256) {
+        return okTokenContract.totalSupply();
     }
 }
