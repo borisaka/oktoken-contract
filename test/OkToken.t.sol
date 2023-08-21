@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity 0.8.21;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {OkToken} from "../src/OkToken.sol";
@@ -7,8 +7,9 @@ import {OkToken} from "../src/OkToken.sol";
 contract OkTokenTest is Test {
     OkToken public token;
     address public user;
+
     function setUp() public {
-        token = new OkToken(address(this));
+        token = new OkToken();
         user = address(0x1);
     }
 
@@ -22,5 +23,4 @@ contract OkTokenTest is Test {
         token.burn(user, 50);
         assertEq(token.balanceOf(user), 50);
     }
-
 }

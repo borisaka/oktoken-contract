@@ -1,29 +1,32 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity 0.8.21;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import "forge-std/Test.sol";
+import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 import {OkToken} from "../src/OkToken.sol";
 import {OkVault} from "../src/OkVault.sol";
-import {MockERC20} from "./MockERC20.sol";
+import {OkUSD} from "./OkUSD.sol";
 import {console} from "forge-std/Script.sol";
 
 contract OkVaultTest is Test {
     OkVault public vault;
     OkToken public token;
-    MockERC20 public usdt;
+    IERC20 public usdt;
     address public alice;
     address public bob;
     address public creator;
+    address public whale = 0xF977814e90dA44bFA03b6295A0616a897441aceC;
 
     function setUp() public {
         creator = address(0x3);
         bob = address(0x2);
         alice = address(0x1);
 
-        usdt = new MockERC20();
-        vault = new OkVault(address(usdt), creator);
+        address usdtAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+        usdt = IERC20(usdtAddress);
+        vault = new OkVault(usdtAddress, creator);
         token = OkToken(vault.getOkTokenAddress());
+        vm.deal(usdtAddress, address(this), 100000000000 ether);
     }
 
     function test_getRate() public {
@@ -96,5 +99,4 @@ contract OkVaultTest is Test {
         assertEq(token.balanceOf(bob), 35263202770106721108);
         assertEq(vault.exchangeRate(), 1142448);
     }
-
 }
