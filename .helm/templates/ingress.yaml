@@ -1,0 +1,34 @@
+{{- if .Values.ingress.enabled -}}
+{{- $fullName := include "service.fullname" . }}
+{{- $httpPort := .Values.service.httpPort }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  {{- range $key, $value := .Values.ingress.annotations }}
+    {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  labels:
+    app: {{ include "service.fullname" . }}
+    release: {{ .Release.Name }}
+  name: {{ template "service.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  rules:
+    - host: {{ .Values.ingress.hosts }}
+      http:
+        paths:
+        - backend:
+            service:
+              name: {{ $fullName }}
+              port:
+                number: {{ $httpPort }}
+          path: /
+          pathType: ImplementationSpecific
+{{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+      - {{ .Values.ingress.hosts }}
+      secretName: {{ .Values.ingress.secretName | default (printf "%s-tls" (include "service.fullname" .)) }}
+{{- end }}
+{{- end -}}
