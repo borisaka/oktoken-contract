@@ -1,4 +1,4 @@
-FROM registry.octogroup.io/devops/dockerbase:foundry
+FROM anyday/foundry
 
 COPY . .
 
