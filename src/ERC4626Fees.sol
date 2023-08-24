@@ -10,6 +10,8 @@ import {SafeERC20} from "openzeppelin/token/ERC20/utils/SafeERC20.sol";
 abstract contract ERC4626Fees is ERC4626 {
     using Math for uint256;
 
+    uint256 private constant _FEE_BASE_POINT = 1e4;
+
     /**
      * @dev See {IERC4626-previewDeposit}.
      */
@@ -83,10 +85,10 @@ abstract contract ERC4626Fees is ERC4626 {
     }
 
     function _feeOnRaw(uint256 assets, uint256 feeBasePoint) private pure returns (uint256) {
-        return assets.mulDiv(feeBasePoint, 1e5, Math.Rounding.Ceil);
+        return assets.mulDiv(feeBasePoint, _FEE_BASE_POINT, Math.Rounding.Ceil);
     }
 
     function _feeOnTotal(uint256 assets, uint256 feeBasePoint) private pure returns (uint256) {
-        return assets.mulDiv(feeBasePoint, 1e5, Math.Rounding.Ceil);
+        return assets.mulDiv(feeBasePoint, _FEE_BASE_POINT, Math.Rounding.Ceil);
     }
 }

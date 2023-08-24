@@ -12,15 +12,17 @@ import {ERC4626Fees} from "./ERC4626Fees.sol";
 contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit, Ownable {
     using Math for uint256;
 
-    address private immutable feeRecipientAddress;
+    address private immutable _feeRecipientAddress;
+    uint8 private immutable _offset;
 
-    constructor(address _assetAddress, address _feeRecipientAddress)
+    constructor(address _assetAddress, uint8 offset_, address feeRecipientAddress_)
         ERC20("OkToken", "OKT")
         ERC4626(IERC20(_assetAddress))
         ERC20Permit("OkToken")
         Ownable(msg.sender)
     {
-        feeRecipientAddress = _feeRecipientAddress;
+        _feeRecipientAddress = feeRecipientAddress_;
+        _offset = offset_;
     }
 
     function previewDeposit(uint256 assets) public view override(ERC4626Fees, ERC4626) returns (uint256) {
@@ -54,11 +56,11 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit, Ownable {
     }
 
     function _feeBasePoint() internal pure override(ERC4626Fees) returns (uint256) {
-        return 10_000;
+        return 1000; // 10%
     }
 
     function _feeRecipient() internal view override(ERC4626Fees) returns (address) {
-        return feeRecipientAddress;
+        return _feeRecipientAddress;
     }
 
     function decimals() public view virtual override(ERC20, ERC4626) returns (uint8) {
@@ -66,28 +68,6 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit, Ownable {
     }
 
     function _decimalsOffset() internal view virtual override(ERC4626) returns (uint8) {
-        return 12;
+        return _offset;
     }
-
-    // function _convertToShares(uint256 assets, Math.Rounding rounding)
-    //     internal
-    //     view
-    //     virtual
-    //     override(ERC4626)
-    //     returns (uint256)
-    // {
-    //     uint256 _totalAssets = totalAssets() == 0 ? totalAssets() : 1e6;
-    //     return assets.mulDiv(_totalAssets * 10 ** 6, totalSupply() + 1, rounding);
-    // }
-
-    // function _convertToAssets(uint256 shares, Math.Rounding rounding)
-    //     internal
-    //     view
-    //     virtual
-    //     override(ERC4626)
-    //     returns (uint256)
-    // {
-    //     uint256 _totalAssets = totalAssets() == 0 ? totalAssets() : 1e6;
-    //     return shares.mulDiv(_totalAssets, totalSupply() + 10 ** _decimalsOffset(), rounding);
-    // }
 }

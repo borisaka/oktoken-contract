@@ -13,6 +13,7 @@ contract OkTokenVaultTest is Test {
     address internal alice = address(0x1);
     address internal bob = address(0x2);
     address internal creator = address(0x3);
+    address internal joe = address(0x4);
     // address public usdtAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
 
     function setUp() public {
@@ -20,7 +21,7 @@ contract OkTokenVaultTest is Test {
         vm.label(alice, "Alice");
         vm.label(bob, "Bob");
         asset = new USDAsset();
-        vault = new OkTokenVault(address(asset), creator);
+        vault = new OkTokenVault(address(asset), 12, creator);
         // asset.transfer(address(vault), 1 * 1e6);
         console.log("Token Vault address: %s", address(vault));
         console.log("Token Vault decimals: %s", vault.decimals());
@@ -60,17 +61,21 @@ contract OkTokenVaultTest is Test {
 
     function testMultiplyDeposit() public {
         uint256 amount = 100 * 1e6;
-        asset.transfer(alice, amount);
-        asset.transfer(bob, amount);
-        vm.startPrank(alice);
-        asset.approve(address(vault), type(uint256).max);
-        vault.deposit(amount, alice);
-        vm.startPrank(bob);
-        asset.approve(address(vault), amount);
-        vault.deposit(amount, bob);
-        assertEq(asset.balanceOf(address(vault)), 190 * 1e6);
+        deposit(amount, alice);
+        deposit(amount, bob);
+        deposit(amount, joe);
+        console.log("totalAssets", vault.totalAssets());
+        console.log("alice balance: %s", vault.balanceOf(alice));
+        console.log("bob balance: %s", vault.balanceOf(bob));
+        console.log("joe balance: %s", vault.balanceOf(joe));
+        console.log("Alice max withdraw: %s", vault.maxWithdraw(alice));
+        console.log("Bob max withdraw: %s", vault.maxWithdraw(bob));
+        console.log("Joe max withdraw: %s", vault.maxWithdraw(joe));
+        assertEq(asset.balanceOf(address(vault)), 285 * 1e6);
         assertEq(vault.balanceOf(alice), 90 ether);
         assertEq(vault.balanceOf(bob), 85263157944598337425);
+        assertEq(vault.balanceOf(joe), 83019390642076103821);
+        assertEq(asset.balanceOf(creator), 15 * 1e6);
         // assertEq(vault.exchangeRate(), 1084083);
     }
 
@@ -95,5 +100,13 @@ contract OkTokenVaultTest is Test {
         assertEq(vault.balanceOf(alice), 40188365608045700128);
         assertEq(vault.balanceOf(bob), 34529085885551829533);
         // assertEq(vault.exchangeRate(), 1142448);
+    }
+
+    function deposit(uint256 amount, address user) internal {
+        asset.transfer(user, amount);
+        vm.startPrank(user);
+        asset.approve(address(vault), amount);
+        vault.deposit(amount, user);
+        vm.stopPrank();
     }
 }
