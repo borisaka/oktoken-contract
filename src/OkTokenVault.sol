@@ -81,9 +81,10 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
         returns (uint256)
     {
         uint256 supply = totalSupply();
-        return supply == 0
-            ? assets * 10 ** _decimalsOffset()
-            : assets.mulDiv(totalSupply() + 10 ** _decimalsOffset(), totalAssets() + 1, rounding);
+        uint256 _totalAssets = totalAssets();
+        return (supply == 0 && _totalAssets > 0)
+            ? _totalAssets * 10 ** _offset
+            : assets.mulDiv(supply + 10 ** _offset, _totalAssets + 1, rounding);
     }
 
     /**
@@ -98,7 +99,7 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
     {
         uint256 supply = totalSupply();
         return supply == 0
-            ? shares.mulDiv(1, 10 ** _decimalsOffset(), rounding)
-            : shares.mulDiv(totalAssets() + 1, supply + 10 ** _decimalsOffset(), rounding);
+            ? shares.mulDiv(1, 10 ** _offset, rounding)
+            : shares.mulDiv(totalAssets() + 1, supply + 10 ** _offset, rounding);
     }
 }
