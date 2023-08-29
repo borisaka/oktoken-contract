@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.21;
 
-import {Ownable} from "openzeppelin/access/Ownable.sol";
-import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
-import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
-import {ERC20Permit} from "openzeppelin/token/ERC20/extensions/ERC20Permit.sol";
-import {ERC4626} from "openzeppelin/token/ERC20/extensions/ERC4626.sol";
-import {Math} from "openzeppelin/utils/math/Math.sol";
+import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {ERC20Permit} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import {ERC4626} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
+import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {ERC4626Fees} from "./ERC4626Fees.sol";
+import "forge-std/Test.sol";
 
 contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
     using Math for uint256;
@@ -15,6 +16,11 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
     uint8 private constant _offset = 12; // 18 - 6
     uint256 private constant MINIMUM_DEPOSIT = 100 * 1e6; // 100 USDT
     uint256 private constant MINIMUM_WITHDRAW = 10 * 1e6; // 10 USDT
+
+    struct WithdrawParams {
+        uint256 assets;
+        uint256 fee;
+    }
 
     constructor(address _assetAddress, address _feeRecipient)
         ERC20("OkToken", "OKT")
@@ -42,6 +48,38 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
     function previewRedeem(uint256 shares) public view override(ERC4626Fees, ERC4626) returns (uint256) {
         require(shares >= MINIMUM_WITHDRAW, "minimum withdraw");
         return super.previewRedeem(shares);
+    }
+
+    function withdrawWithPermit(uint256 assets, address owner, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external
+        returns (uint256)
+    {
+        uint256 maxAssets = maxWithdraw(owner);
+        if (assets > maxAssets) {
+            revert ERC4626ExceededMaxWithdraw(owner, assets, maxAssets);
+        }
+
+        uint256 shares = previewWithdraw(assets);
+        console.log("shares", shares);
+        permit(owner, address(this), shares, deadline, v, r, s);
+        _withdraw(address(this), owner, owner, assets, shares);
+        return shares;
+    }
+
+    function redeemWithPermit(uint256 shares, address owner, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external
+        returns (uint256)
+    {
+        uint256 maxShares = maxRedeem(owner);
+        if (shares > maxShares) {
+            revert ERC4626ExceededMaxRedeem(owner, shares, maxShares);
+        }
+
+        uint256 assets = previewRedeem(shares);
+        permit(owner, address(this), shares, deadline, v, r, s);
+        _withdraw(address(this), owner, owner, assets, shares);
+
+        return assets;
     }
 
     function exchangeRate() public view returns (uint256 rate) {

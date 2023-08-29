@@ -2,26 +2,34 @@
 pragma solidity 0.8.21;
 
 import "forge-std/Test.sol";
-import {ERC20} from "solmate/tokens/ERC20.sol";
+import {ERC20} from "lib/solmate/src/tokens/ERC20.sol";
 import {OkTokenVault} from "../src/OkTokenVault.sol";
 import {USDAsset} from "./USDAsset.sol";
 import {console} from "forge-std/Script.sol";
+import {SigUtils} from "./SigUtils.sol";
 
 contract OkTokenVaultTest is Test {
     OkTokenVault public vault;
     ERC20 public asset;
-    address internal alice = address(0x1);
-    address internal bob = address(0x2);
+    SigUtils public sigUtils;
+    uint256 alicePrivateKey = 0xA11CE;
+    uint256 bobPrivateKey = 0xB0B;
+
+    address internal alice = vm.addr(alicePrivateKey);
+    address internal bob = vm.addr(bobPrivateKey);
     address internal creator = address(0x3);
     address internal joe = address(0x4);
     // address public usdtAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
 
     function setUp() public {
+        vm.label(address(this), "OkTokenVaultTest");
         vm.label(creator, "Creator");
         vm.label(alice, "Alice");
         vm.label(bob, "Bob");
         asset = new USDAsset();
         vault = new OkTokenVault(address(asset), creator);
+        sigUtils = new SigUtils(vault.DOMAIN_SEPARATOR());
+
         // console.log("Token Vault address: %s", address(vault));
         // console.log("Token Vault decimals: %s", vault.decimals());
     }
@@ -143,6 +151,61 @@ contract OkTokenVaultTest is Test {
         console.log("Rate: %s", vault.exchangeRate());
 
         // assertEq(vault.exchangeRate(), 1142448);
+    }
+
+    function testPermit() public {
+        SigUtils.Permit memory permit =
+            SigUtils.Permit({owner: alice, spender: address(this), value: 10e18, nonce: 0, deadline: 1 days});
+
+        bytes32 digest = sigUtils.getTypedDataHash(permit);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePrivateKey, digest);
+
+        vault.permit(permit.owner, permit.spender, permit.value, permit.deadline, v, r, s);
+
+        assertEq(vault.allowance(alice, address(this)), 10e18);
+        assertEq(vault.nonces(alice), 1);
+    }
+
+    function testWithdrawWithPermit() public {
+        uint256 amountDeposit = 100 * 1e6;
+        uint256 deadline = block.timestamp + 1 days;
+        uint256 amountWithdraw = 50 * 1e6;
+        _deposit(amountDeposit, alice);
+        uint256 shares = vault.previewWithdraw(amountWithdraw);
+        console.log("shares %s", shares);
+        SigUtils.Permit memory permit =
+            SigUtils.Permit({owner: alice, spender: address(vault), value: shares, nonce: 0, deadline: deadline});
+
+        bytes32 digest = sigUtils.getTypedDataHash(permit);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePrivateKey, digest);
+        vm.prank(bob); // bob should can withdraw for alice
+        vault.withdrawWithPermit(amountWithdraw, permit.owner, permit.deadline, v, r, s);
+        assertEq(vault.nonces(alice), 1);
+        assertEq(asset.balanceOf(address(vault)), 42500000);
+        assertEq(asset.balanceOf(alice), amountWithdraw);
+        assertEq(vault.balanceOf(alice), 37894736811634349351);
+        assertEq(vault.exchangeRate(), 1121527);
+    }
+
+    function testRedeemWithPermit() public {
+        uint256 amountDeposit = 100 * 1e6;
+        uint256 deadline = block.timestamp;
+        uint256 amountRedeem = 50 ether;
+        _deposit(amountDeposit, alice);
+        SigUtils.Permit memory _permit =
+            SigUtils.Permit({owner: alice, spender: address(vault), value: amountRedeem, nonce: 0, deadline: deadline});
+
+        bytes32 digest = sigUtils.getTypedDataHash(_permit);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePrivateKey, digest);
+        vm.prank(bob); // bob should can redeem for alice
+        vault.redeemWithPermit(amountRedeem, _permit.owner, _permit.deadline, v, r, s);
+        assertEq(asset.balanceOf(address(vault)), 45125000);
+        assertEq(asset.balanceOf(alice), 47500000);
+        assertEq(vault.balanceOf(alice), 40 ether);
+        assertEq(vault.exchangeRate(), 1128124);
     }
 
     function _deposit(uint256 amount, address user) internal {
