@@ -7,4 +7,11 @@ libraries = []
 optimizer = true
 verbosity = 0
 solc = "0.8.21"
+# remappings = [
+#     "ds-test/=lib/forge-std/lib/ds-test/src/",
+#     "erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/",
+#     "forge-std/=lib/forge-std/src/",
+#     "openzeppelin/=lib/openzeppelin-contracts/contracts/",
+#     "solmate/=lib/solmate/src/",
+# ]
 # See more config options https://github.com/foundry-rs/foundry/tree/master/crates/config

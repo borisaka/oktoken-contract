@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.21;
 
-import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
-import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {ERC20Permit} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import {ERC4626} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
-import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ERC4626Fees} from "./ERC4626Fees.sol";
-import "forge-std/Test.sol";
+import {ERC5143} from "./ERC5143.sol";
 
-contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
+error MinimumDeposit();
+error MinimumWidraw();
+
+contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
     using Math for uint256;
 
     uint8 private constant _offset = 12; // 18 - 6
@@ -29,24 +32,33 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
         ERC20Permit("OkToken")
     {}
 
-    function previewDeposit(uint256 assets) public view override(ERC4626Fees, ERC4626) returns (uint256) {
-        require(assets >= MINIMUM_DEPOSIT, "minimum deposit");
+    function previewDeposit(uint256 assets) public view override(ERC4626Fees, ERC4626) returns (uint256 shares) {
+        // require(assets >= MINIMUM_DEPOSIT, "minimum deposit");
+        if (assets < MINIMUM_DEPOSIT) {
+            revert MinimumDeposit();
+        }
         return super.previewDeposit(assets);
     }
 
-    function previewMint(uint256 shares) public view override(ERC4626Fees, ERC4626) returns (uint256) {
-        uint256 assets = super.previewMint(shares);
-        require(assets >= MINIMUM_DEPOSIT, "minimum deposit");
+    function previewMint(uint256 shares) public view override(ERC4626Fees, ERC4626) returns (uint256 assets) {
+        assets = super.previewMint(shares);
+        if (assets < MINIMUM_DEPOSIT) {
+            revert MinimumDeposit();
+        }
         return assets;
     }
 
-    function previewWithdraw(uint256 assets) public view override(ERC4626Fees, ERC4626) returns (uint256) {
-        require(assets >= MINIMUM_WITHDRAW, "minimum withdraw");
+    function previewWithdraw(uint256 assets) public view override(ERC4626Fees, ERC4626) returns (uint256 shares) {
+        if (assets < MINIMUM_WITHDRAW) {
+            revert MinimumWidraw();
+        }
         return super.previewWithdraw(assets);
     }
 
-    function previewRedeem(uint256 shares) public view override(ERC4626Fees, ERC4626) returns (uint256) {
-        require(shares >= MINIMUM_WITHDRAW, "minimum withdraw");
+    function previewRedeem(uint256 shares) public view override(ERC4626Fees, ERC4626) returns (uint256 assets) {
+        if (shares < MINIMUM_WITHDRAW) {
+            revert MinimumWidraw();
+        }
         return super.previewRedeem(shares);
     }
 
@@ -60,7 +72,6 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
         }
 
         uint256 shares = previewWithdraw(assets);
-        console.log("shares", shares);
         permit(owner, address(this), shares, deadline, v, r, s);
         _withdraw(address(this), owner, owner, assets, shares);
         return shares;

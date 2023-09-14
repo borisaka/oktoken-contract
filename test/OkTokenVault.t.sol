@@ -8,6 +8,9 @@ import {USDAsset} from "./USDAsset.sol";
 import {console} from "forge-std/Script.sol";
 import {SigUtils} from "./SigUtils.sol";
 
+error MinimumDeposit();
+error MinimumWidraw();
+
 contract OkTokenVaultTest is Test {
     OkTokenVault public vault;
     ERC20 public asset;
@@ -32,6 +35,20 @@ contract OkTokenVaultTest is Test {
 
         // console.log("Token Vault address: %s", address(vault));
         // console.log("Token Vault decimals: %s", vault.decimals());
+    }
+
+    function testRevertMinimumDeposit() public {
+        uint256 amount = 1;
+        vm.expectRevert(MinimumDeposit.selector);
+        vault.deposit(amount, alice);
+    }
+
+    function testRevertMinimumWidraw() public {
+        uint256 amountToDeposit = 100 * 1e6;
+        uint256 amountToWithdraw = 1;
+        _deposit(amountToDeposit, alice);
+        vm.expectRevert(MinimumWidraw.selector);
+        vault.withdraw(amountToWithdraw, alice, alice);
     }
 
     function testDepositRedeem() public {
@@ -212,24 +229,27 @@ contract OkTokenVaultTest is Test {
         asset.transfer(user, amount);
         vm.startPrank(user);
         asset.approve(address(vault), amount);
-        console.log("previewDeposit", amount, vault.previewDeposit(amount));
-        vault.deposit(amount, user);
+        uint256 shares = vault.previewDeposit(amount);
+        console.log("previewDeposit", amount, shares);
+        vault.deposit(amount, user, shares);
         vm.stopPrank();
     }
 
     function _withdraw(uint256 amount, address user) internal {
         vm.startPrank(user);
         console.log("maxWithdraw", amount, vault.maxWithdraw(user));
-        console.log("previewWithdraw", amount, vault.previewWithdraw(amount));
-        vault.withdraw(amount, user, user);
+        uint256 shares = vault.previewWithdraw(amount);
+        console.log("previewWithdraw", amount, shares);
+        vault.withdraw(amount, user, user, shares);
         vm.stopPrank();
     }
 
     function _redeem(uint256 amount, address user) internal {
         vm.startPrank(user);
         console.log("maxRedeem", vault.maxRedeem(user));
-        console.log("previewRedeem", amount, vault.previewRedeem(amount));
-        vault.redeem(amount, user, user);
+        uint256 assets = vault.previewRedeem(amount);
+        console.log("previewRedeem", amount, assets);
+        vault.redeem(amount, user, user, assets);
         vm.stopPrank();
     }
 
@@ -239,7 +259,7 @@ contract OkTokenVaultTest is Test {
         asset.transfer(user, assets);
         vm.startPrank(user);
         asset.approve(address(vault), assets);
-        vault.mint(amount, user);
+        vault.mint(amount, user, assets);
         vm.stopPrank();
     }
 }
