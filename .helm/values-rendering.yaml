@@ -1,0 +1,116 @@
+replicaCount: 1
+consumerReplicaCount: 1
+
+image:
+  repository: ""
+  tag: "dev"
+  pullPolicy: Always
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: service
+
+rbac:
+  create: false
+
+containerPort: 80
+
+securityContext:
+  privileged: true
+  # runAsUser: 1000
+  # fsGroup: 1000
+
+command:
+ enabled: true
+   cli: ['forge script script/Counter.s.sol:CounterScript']
+
+migrate:
+ enabled: false
+ cli: '["/bin/bash", "-c"]'
+ args: '[""]'
+
+configfile:
+  enabled: false
+  config: |
+
+secretfile:
+   enabled: false
+
+### secrets env
+secrets:
+  enabled: false
+
+configs:
+    enabled: true
+
+#resources:
+#   limits:
+#    cpu: 250m
+#    memory: 2048Mi
+#   requests:
+#    cpu: 100m
+#    memory: 2048Mi
+
+consumerLivenessProbe: {}
+livenessProbe: {}
+  # todo fix probe url
+  # httpGet:
+  #   path: /yaeda/api/doc
+  #   port: http
+  # initialDelaySeconds: 30
+  # periodSeconds: 10
+
+consumerReadinessProbe: {}
+readinessProbe: {}
+  # todo fix probe url
+  # httpGet:
+  #   path: /
+  #   port: http
+  # initialDelaySeconds: 15
+  # periodSeconds: 10
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+service:
+  enabled: true
+  httpPort: 8000
+  targetPort: 3000
+  type: ClusterIP
+
+servicews:
+  enabled: false
+  httpPort: 8001
+  targetPort: 3000
+  type: ClusterIP
+
+ingress:
+  enabled: false
+  annotations:
+     cert-manager.io/cluster-issuer: "letsencrypt"
+     kubernetes.io/ingress.class: nginx
+     kubernetes.io/tls-acme: 'true'
+
+  hosts:
+    -
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+#cronjobPhpCronScheduler:
+#  schedule: "0 12 * * *"
+#  command: '["/bin/sh"]'
+#  args:
+#    - -c
+#    - >-
+#      php bin/console
+
+#cronjobSuccessfulJobsHistoryLimit: 5
+#cronjobFailedJobsHistoryLimit: 10

@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "service.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    app: {{ include "service.fullname" . }}
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+       maxSurge: 50%
+       maxUnavailable: 50% 
+  selector:
+    matchLabels:
+      app: {{ include "service.fullname" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "service.fullname" . }}
+        release: {{ .Release.Name }}
+      annotations:
+        {{ toYaml .Values.podAnnotations | indent 8 }}
+    spec:
+      serviceAccountName: {{ include "service.fullname" . }}
+      imagePullSecrets:
+        - name: docker-registry  
+      containers:
+        - name: {{ include "service.fullname" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          {{- if .Values.command.enabled }}
+          command: {{ .Values.command.cli }}
+          {{- end }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+{{ toYaml .Values.securityContext | indent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+          envFrom:
+           {{- if .Values.configs.enabled }}  
+           - configMapRef:
+               name: {{ include "service.fullname" . }}-configmaps
+           {{- end }}
+           {{- if .Values.secrets.enabled }}  
+           - secretRef:
+               name: {{ include "service.fullname" . }}-secrets
+           {{- end }}
+          {{- if .Values.livenessProbe }}
+          livenessProbe:
+{{ toYaml .Values.livenessProbe | indent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe }}
+          readinessProbe:
+{{ toYaml .Values.readinessProbe | indent 12 }}
+          {{- end }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+         {{- if .Values.secretfile.enabled }}
+          volumeMounts:
+            - name: {{ include ".Values.secretfile.name" . }}
+              mountPath: ${{ .Values.secretfile.path }}
+         {{- end }} 
+      {{- if .Values.secretfile.enabled }}
+      volumes:
+        - name: {{ include ".Values.secretfile.name" . }}
+          secret:
+            secretName: {{ include ".Values.secretfile.name" . }}
+      {{- end }}
+         {{- if .Values.configfile.enabled }}       
+          volumeMounts:
+            - name: {{ include "service.fullname" . }}
+              mountPath: ${{ .Values.configfile.path }}
+         {{- end }}
+      {{- if .Values.configfile.enabled }}
+      volumes:    
+        - name: {{ include "service.fullname" . }}
+          configMap:
+            name: {{ include "service.fullname" . }}
+      {{- end }}  
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}

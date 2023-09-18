@@ -1,0 +1,75 @@
+services:
+  - name: docker:dind
+    entrypoint: [ "env", "-u", "DOCKER_HOST" ]
+    command: [ "dockerd-entrypoint.sh" ]
+
+variables:
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  DOMAIN: ${DOMAIN}
+  IMAGE_TAG: ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}
+
+stages:
+  - build
+  - deploy
+
+.build-images:
+  stage: build
+  before_script:
+  script:
+    - docker login -u gitlab-ci-token -p ${CI_JOB_TOKEN} ${CI_REGISTRY}
+    - export BR=$(echo $CI_COMMIT_REF_NAME | tr / -)
+    - DOCKER_BUILDKIT=1 docker build --tag ${IMAGE_TAG}:${BR}${CI_COMMIT_SHORT_SHA} .
+    - docker push ${IMAGE_TAG}:${BR}${CI_COMMIT_SHORT_SHA}
+
+.deploy-helm:
+  stage: deploy
+  image:
+    name: dtzar/helm-kubectl
+  script:
+    - mkdir -p ~/.kube && echo ${KUBE_CONFIG} | base64 -d > ~/.kube/config
+    - envsubst < ./.helm/values-rendering.yaml > ./.helm/values.yaml
+    - export BR=$(echo $CI_COMMIT_REF_NAME | tr / -)
+    - helm upgrade --install -n ${CI_PROJECT_NAMESPACE} ${CI_PROJECT_NAME}-${CI_COMMIT_REF_NAME} ./.helm -f ./.helm/values.yaml
+      --set image.repository=${IMAGE_TAG}
+      --set image.tag=${BR}${CI_COMMIT_SHORT_SHA}
+      --set configs.COMMIT_HASH=${CI_COMMIT_SHA}
+      --set ingress.enabled=true
+      --set ingress.hosts=${BR}-${CI_PROJECT_NAME}.${DOMAIN}
+      --set "ingress.tls=true"
+    - echo ${BR}-${CI_PROJECT_NAME}.${DOMAIN}
+
+build-images-develop:
+  extends: .build-images
+  environment: develop
+  tags:
+    - k8s-runner01
+  only:
+    - develop
+
+build-images-production:
+  extends: .build-images
+  environment: production
+  tags:
+    - k8s-runner01
+  only:
+    - tags
+
+deploy-develop:
+  extends: .deploy-helm
+  environment: develop
+  tags:
+    - k8s-runner01
+  only:
+    - develop
+  when: manual
+
+deploy-production:
+  extends: .deploy-helm
+  environment: production
+  tags:
+    - k8s-runner01
+  only:
+    - tags
+  when: manual
