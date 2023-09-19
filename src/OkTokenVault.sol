@@ -33,7 +33,6 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
     {}
 
     function previewDeposit(uint256 assets) public view override(ERC4626Fees, ERC4626) returns (uint256 shares) {
-        // require(assets >= MINIMUM_DEPOSIT, "minimum deposit");
         if (assets < MINIMUM_DEPOSIT) {
             revert MinimumDeposit();
         }
@@ -60,6 +59,14 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
             revert MinimumWidraw();
         }
         return super.previewRedeem(shares);
+    }
+
+    function maxWithdraw(address owner) public view override(ERC4626Fees, ERC4626) returns (uint256) {
+        return super.maxWithdraw(owner);
+    }
+
+    function maxRedeem(address owner) public view override(ERC4626Fees, ERC4626) returns (uint256) {
+        return super.maxRedeem(owner);
     }
 
     function withdrawWithPermit(uint256 assets, address owner, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
@@ -94,7 +101,7 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
     }
 
     function exchangeRate() public view returns (uint256 rate) {
-        return _convertToAssets(1e18, Math.Rounding.Floor);
+        return convertToAssets(1 ether);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares)
@@ -118,37 +125,37 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
     function _decimalsOffset() internal view virtual override(ERC4626) returns (uint8) {
         return _offset;
     }
-    /**
-     * @dev Internal conversion function (from assets to shares) with support for rounding direction.
-     */
+    // /**
+    //  * @dev Internal conversion function (from assets to shares) with support for rounding direction.
+    //  */
 
-    function _convertToShares(uint256 assets, Math.Rounding rounding)
-        internal
-        view
-        virtual
-        override(ERC4626)
-        returns (uint256)
-    {
-        uint256 supply = totalSupply();
-        uint256 _totalAssets = totalAssets();
-        return (supply == 0 && _totalAssets > 0)
-            ? _totalAssets * 10 ** _offset
-            : assets.mulDiv(supply + 10 ** _offset, _totalAssets + 1, rounding);
-    }
+    // function _convertToShares(uint256 assets, Math.Rounding rounding)
+    //     internal
+    //     view
+    //     virtual
+    //     override(ERC4626)
+    //     returns (uint256)
+    // {
+    //     uint256 supply = totalSupply();
+    //     uint256 _totalAssets = totalAssets();
+    //     return (supply == 0 && _totalAssets > 0)
+    //         ? _totalAssets * 10 ** _offset
+    //         : assets.mulDiv(supply + 10 ** _offset, _totalAssets + 1, rounding);
+    // }
 
-    /**
-     * @dev Internal conversion function (from shares to assets) with support for rounding direction.
-     */
-    function _convertToAssets(uint256 shares, Math.Rounding rounding)
-        internal
-        view
-        virtual
-        override(ERC4626)
-        returns (uint256)
-    {
-        uint256 supply = totalSupply();
-        return supply == 0
-            ? shares.mulDiv(1, 10 ** _offset, rounding)
-            : shares.mulDiv(totalAssets() + 1, supply + 10 ** _offset, rounding);
-    }
+    // /**
+    //  * @dev Internal conversion function (from shares to assets) with support for rounding direction.
+    //  */
+    // function _convertToAssets(uint256 shares, Math.Rounding rounding)
+    //     internal
+    //     view
+    //     virtual
+    //     override(ERC4626)
+    //     returns (uint256)
+    // {
+    //     uint256 supply = totalSupply();
+    //     return supply == 0
+    //         ? shares.mulDiv(1, 10 ** _offset, rounding)
+    //         : shares.mulDiv(totalAssets() + 1, supply + 10 ** _offset, rounding);
+    // }
 }
