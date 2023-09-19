@@ -10,8 +10,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 abstract contract ERC4626Fees is ERC4626 {
     using Math for uint256;
 
-    uint256 private constant _BASIS_POINT_SCALE = 1e4;
-    uint256 private immutable _feeBasePoint;
+    uint256 private constant _BASIS_POINT_SCALE = 1e4; // 100%
+    uint256 private immutable _feeBasePoint; // 1000 = 10%
     address private immutable _feeRecipient;
 
     constructor(address feeRecipient_, uint256 feeBasePoint_) {
@@ -25,7 +25,7 @@ abstract contract ERC4626Fees is ERC4626 {
      * @dev See {IERC4626-previewDeposit}.
      */
     function previewDeposit(uint256 assets) public view virtual override returns (uint256) {
-        uint256 fee = _feeOnTotal(assets, _feeBasePoint);
+        uint256 fee = _feeOnTotal(assets);
         return super.previewDeposit(assets - fee);
     }
 
@@ -34,14 +34,14 @@ abstract contract ERC4626Fees is ERC4626 {
      */
     function previewMint(uint256 shares) public view virtual override returns (uint256) {
         uint256 assets = super.previewMint(shares);
-        return assets + _feeOnRaw(assets, _feeBasePoint);
+        return assets + _feeOnRaw(assets);
     }
 
     /**
      * @dev See {IERC4626-previewWithdraw}.
      */
     function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
-        uint256 fee = _feeOnRaw(assets, _feeBasePoint);
+        uint256 fee = _feeOnRaw(assets);
         return super.previewWithdraw(assets + fee);
     }
 
@@ -50,21 +50,26 @@ abstract contract ERC4626Fees is ERC4626 {
      */
     function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
         uint256 assets = super.previewRedeem(shares);
-        return assets - _feeOnTotal(assets, _feeBasePoint);
+        return assets - _feeOnTotal(assets);
+    }
+
+    function maxWithdraw(address owner) public view virtual override returns (uint256) {
+        uint256 assets = super.maxWithdraw(owner);
+        return assets - _feeOnTotal(assets);
+    }
+
+    function maxRedeem(address owner) public view virtual override returns (uint256) {
+        return super.maxRedeem(owner);
     }
 
     /**
      * @dev See {IERC4626-_deposit}.
      */
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal virtual override {
-        uint256 fee = _feeOnTotal(assets, _feeBasePoint);
-        address recipient = _feeRecipient;
-
+        uint256 fee = _feeOnTotal(assets);
         super._deposit(caller, receiver, assets, shares);
 
-        if (fee > 0 && recipient != address(this)) {
-            SafeERC20.safeTransfer(IERC20(asset()), recipient, fee / 2); // Half to recipient, half to vault.
-        }
+        _transferFee(fee);
     }
 
     /**
@@ -75,21 +80,25 @@ abstract contract ERC4626Fees is ERC4626 {
         virtual
         override
     {
-        uint256 fee = _feeOnRaw(assets, _feeBasePoint);
-        address recipient = _feeRecipient;
-
+        uint256 fee = _feeOnRaw(assets);
         super._withdraw(caller, receiver, owner, assets, shares);
 
+        _transferFee(fee);
+    }
+
+    function _feeOnRaw(uint256 assets) private view returns (uint256) {
+        return assets.mulDiv(_feeBasePoint, _BASIS_POINT_SCALE, Math.Rounding.Floor);
+    }
+
+    function _feeOnTotal(uint256 assets) private view returns (uint256) {
+        uint256 feeBasePoint = _feeBasePoint;
+        return assets.mulDiv(feeBasePoint, _BASIS_POINT_SCALE, Math.Rounding.Floor);
+    }
+
+    function _transferFee(uint256 fee) internal virtual {
+        address recipient = _feeRecipient;
         if (fee > 0 && recipient != address(this)) {
             SafeERC20.safeTransfer(IERC20(asset()), recipient, fee / 2); // Half to recipient, half to vault.
         }
-    }
-
-    function _feeOnRaw(uint256 assets, uint256 feeBasePoint) private pure returns (uint256) {
-        return assets.mulDiv(feeBasePoint, _BASIS_POINT_SCALE, Math.Rounding.Floor);
-    }
-
-    function _feeOnTotal(uint256 assets, uint256 feeBasePoint) private pure returns (uint256) {
-        return assets.mulDiv(feeBasePoint, _BASIS_POINT_SCALE, Math.Rounding.Floor);
     }
 }
