@@ -4,16 +4,20 @@ pragma solidity 0.8.21;
 import "forge-std/Test.sol";
 import {ERC20} from "lib/solmate/src/tokens/ERC20.sol";
 import {OkTokenVault} from "../src/OkTokenVault.sol";
-import {USDAsset} from "./USDAsset.sol";
+import {TetherToken} from "../src/utils/USDT.sol";
 import {console} from "forge-std/Script.sol";
 import {SigUtils} from "./SigUtils.sol";
 
-error MinimumDeposit();
-error MinimumWidraw();
+error MinimumDeposit(uint256 deposit, uint256 minDeposit);
+error MinimumWidraw(uint256 withdraw, uint256 minWithdraw);
+error ERC5143DepositSlippageProtection(uint256 shares, uint256 minShares);
+error ERC5143MintSlippageProtection(uint256 assets, uint256 maxAssets);
+error ERC5143WithdrawSlippageProtection(uint256 shares, uint256 maxShares);
+error ERC5143RedeemSlippageProtection(uint256 assets, uint256 minAssets);
 
 contract OkTokenVaultTest is Test {
     OkTokenVault public vault;
-    USDAsset public asset;
+    TetherToken public asset;
     SigUtils public sigUtils;
     uint256 alicePrivateKey = 0xA11CE;
     uint256 bobPrivateKey = 0xB0B;
@@ -29,7 +33,8 @@ contract OkTokenVaultTest is Test {
         vm.label(creator, "Creator");
         vm.label(alice, "Alice");
         vm.label(bob, "Bob");
-        asset = new USDAsset();
+        // (uint256 _initialSupply, string memory _name, string memory _symbol, uint256 _decimals)
+        asset = new TetherToken(1000000 * 1e6, "USDT", "USDT", 6);
         vault = new OkTokenVault(address(asset), creator);
         sigUtils = new SigUtils(vault.DOMAIN_SEPARATOR());
         // asset.mint(address(vault), 1 * 1e6); // 100 USDT initial deposit
@@ -110,15 +115,17 @@ contract OkTokenVaultTest is Test {
 
     function testRevertMinimumDeposit() public {
         uint256 amount = 1;
-        vm.expectRevert(MinimumDeposit.selector);
+        uint256 minDeposit = 100 * 1e6;
+        vm.expectRevert(abi.encodeWithSelector(MinimumDeposit.selector, amount, minDeposit));
         vault.deposit(amount, alice);
     }
 
     function testRevertMinimumWidraw() public {
         uint256 amountToDeposit = 100 * 1e6;
+        uint256 minWithdraw = 10 * 1e6;
         uint256 amountToWithdraw = 1;
         _deposit(amountToDeposit, alice);
-        vm.expectRevert(MinimumWidraw.selector);
+        vm.expectRevert(abi.encodeWithSelector(MinimumWidraw.selector, amountToWithdraw, minWithdraw));
         vault.withdraw(amountToWithdraw, alice, alice);
     }
 
@@ -308,8 +315,11 @@ contract OkTokenVaultTest is Test {
         uint256 slippage = 100;
         uint256 desirableSharesWithSlippage = desirableShares - (desirableShares * slippage / 10000);
         _deposit(amountDeposit, bob); // bob trying to front run alice
+        uint256 shares = vault.previewDeposit(amountDeposit);
         vm.prank(alice);
-        vm.expectRevert("ERC5143: deposit slippage protection");
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC5143DepositSlippageProtection.selector, shares, desirableSharesWithSlippage)
+        );
         vault.deposit(amountDeposit, alice, desirableSharesWithSlippage);
     }
 
@@ -322,7 +332,10 @@ contract OkTokenVaultTest is Test {
         uint256 slippage = 100;
         uint256 desirableSharesWithSlippage = desirableShares - (desirableShares * slippage / 10000);
         _mint(amountMint, bob); // bob trying to front run alice
-        vm.expectRevert("ERC5143: mint slippage protection");
+        uint256 shares = vault.previewMint(amountMint);
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC5143MintSlippageProtection.selector, shares, desirableSharesWithSlippage)
+        );
         vm.prank(alice);
         vault.mint(amountMint, alice, desirableSharesWithSlippage);
     }
@@ -347,8 +360,8 @@ contract OkTokenVaultTest is Test {
     // }
 
     function _mintAssets(address to, uint256 amount) internal {
+        asset.transfer(to, amount);
         vm.startPrank(to);
-        asset.mint(to, amount);
         asset.approve(address(vault), amount);
         vm.stopPrank();
     }
