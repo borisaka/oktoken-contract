@@ -11,7 +11,7 @@ import {ERC4626Fees} from "./ERC4626Fees.sol";
 import {ERC5143} from "./ERC5143.sol";
 
 error MinimumDeposit(uint256 deposit, uint256 minDeposit);
-error MinimumWidraw(uint256 withdraw, uint256 minWithdraw);
+error MinimumWitdraw(uint256 withdraw, uint256 minWithdraw);
 
 contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
     using Math for uint256;
@@ -49,7 +49,7 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
 
     function previewWithdraw(uint256 assets) public view override(ERC4626Fees, ERC4626) returns (uint256 shares) {
         if (assets < MINIMUM_WITHDRAW) {
-            revert MinimumWidraw(assets, MINIMUM_WITHDRAW);
+            revert MinimumWitdraw(assets, MINIMUM_WITHDRAW);
         }
         return super.previewWithdraw(assets);
     }
@@ -57,7 +57,7 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
     function previewRedeem(uint256 shares) public view override(ERC4626Fees, ERC4626) returns (uint256 assets) {
         assets = super.previewRedeem(shares);
         if (assets < MINIMUM_WITHDRAW) {
-            revert MinimumWidraw(assets, MINIMUM_WITHDRAW);
+            revert MinimumWitdraw(assets, MINIMUM_WITHDRAW);
         }
         return assets;
     }

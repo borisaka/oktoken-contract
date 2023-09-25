@@ -9,7 +9,7 @@ import {console} from "forge-std/Script.sol";
 import {SigUtils} from "./SigUtils.sol";
 
 error MinimumDeposit(uint256 deposit, uint256 minDeposit);
-error MinimumWidraw(uint256 withdraw, uint256 minWithdraw);
+error MinimumWitdraw(uint256 withdraw, uint256 minWithdraw);
 error ERC5143DepositSlippageProtection(uint256 shares, uint256 minShares);
 error ERC5143MintSlippageProtection(uint256 assets, uint256 maxAssets);
 error ERC5143WithdrawSlippageProtection(uint256 shares, uint256 maxShares);
@@ -36,6 +36,8 @@ contract OkTokenVaultTest is Test {
         // (uint256 _initialSupply, string memory _name, string memory _symbol, uint256 _decimals)
         asset = new TetherToken(1000000 * 1e6, "USDT", "USDT", 6);
         vault = new OkTokenVault(address(asset), creator);
+        // asset = TetherToken(0x96a29905AeBa57B5E8516C6d21411802dAeA84f2);
+        // vault = OkTokenVault(0xA5481e4298Dfea620Dd664429e52A17461250E94);
         sigUtils = new SigUtils(vault.DOMAIN_SEPARATOR());
         // asset.mint(address(vault), 1 * 1e6); // 100 USDT initial deposit
         // asset.approve(address(vault), 100 * 1e6);
@@ -120,12 +122,12 @@ contract OkTokenVaultTest is Test {
         vault.deposit(amount, alice);
     }
 
-    function testRevertMinimumWidraw() public {
+    function testRevertMinimumWithdraw() public {
         uint256 amountToDeposit = 100 * 1e6;
         uint256 minWithdraw = 10 * 1e6;
         uint256 amountToWithdraw = 1;
         _deposit(amountToDeposit, alice);
-        vm.expectRevert(abi.encodeWithSelector(MinimumWidraw.selector, amountToWithdraw, minWithdraw));
+        vm.expectRevert(abi.encodeWithSelector(MinimumWitdraw.selector, amountToWithdraw, minWithdraw));
         vault.withdraw(amountToWithdraw, alice, alice);
     }
 
