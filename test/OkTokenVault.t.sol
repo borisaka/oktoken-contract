@@ -9,7 +9,9 @@ import {console} from "forge-std/Script.sol";
 import {SigUtils} from "./SigUtils.sol";
 
 error MinimumDeposit(uint256 deposit, uint256 minDeposit);
+error MinimumMint(uint256 mint, uint256 minMint);
 error MinimumWitdraw(uint256 withdraw, uint256 minWithdraw);
+error MinimumRedeem(uint256 redeem, uint256 minRedeem);
 error ERC5143DepositSlippageProtection(uint256 shares, uint256 minShares);
 error ERC5143MintSlippageProtection(uint256 assets, uint256 maxAssets);
 error ERC5143WithdrawSlippageProtection(uint256 shares, uint256 maxShares);
@@ -122,13 +124,32 @@ contract OkTokenVaultTest is Test {
         vault.deposit(amount, alice);
     }
 
+    function testRevertMinimumMint() public {
+        uint256 amountToMint = 1;
+        uint256 minMint = vault.previewDeposit(100 * 1e6);
+        vm.expectRevert(abi.encodeWithSelector(MinimumMint.selector, amountToMint, minMint));
+        vault.mint(amountToMint, alice);
+    }
+
     function testRevertMinimumWithdraw() public {
         uint256 amountToDeposit = 100 * 1e6;
         uint256 minWithdraw = 10 * 1e6;
         uint256 amountToWithdraw = 1;
         _deposit(amountToDeposit, alice);
         vm.expectRevert(abi.encodeWithSelector(MinimumWitdraw.selector, amountToWithdraw, minWithdraw));
+        vm.prank(alice);
         vault.withdraw(amountToWithdraw, alice, alice);
+    }
+
+    function testMimimumRedeem() public {
+        uint256 amountToDeposit = 100 * 1e6;
+        uint256 amountToRedeem = 1;
+        _deposit(amountToDeposit, alice);
+        uint256 minRedeem = vault.previewWithdraw(10 * 1e6);
+        console.log("minRedeem", minRedeem);
+        vm.expectRevert(abi.encodeWithSelector(MinimumRedeem.selector, amountToRedeem, minRedeem));
+        vm.prank(alice);
+        vault.redeem(amountToRedeem, alice, alice);
     }
 
     function testDepositRedeem() public {
