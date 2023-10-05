@@ -7,6 +7,8 @@ libraries = []
 optimizer = true
 verbosity = 0
 solc = "0.8.21"
+gas_reports_ignore = ["SigUtils", "TetherToken"]
+
 # remappings = [
 #     "ds-test/=lib/forge-std/lib/ds-test/src/",
 #     "erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/",

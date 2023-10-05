@@ -54,7 +54,7 @@ abstract contract ERC4626Fees is ERC4626 {
 
     function maxWithdraw(address owner) public view virtual override returns (uint256) {
         uint256 assets = super.maxWithdraw(owner);
-        return assets - _feeOnTotal(assets);
+        return assets - _feeOnRaw(assets);
     }
 
     function maxRedeem(address owner) public view virtual override returns (uint256) {
@@ -85,13 +85,17 @@ abstract contract ERC4626Fees is ERC4626 {
         _transferFee(fee);
     }
 
+    /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees.
+    /// Used in {IERC4626-mint} and {IERC4626-withdraw} operations.
     function _feeOnRaw(uint256 assets) private view returns (uint256) {
         return assets.mulDiv(_feeBasePoint, _BASIS_POINT_SCALE, Math.Rounding.Floor);
     }
 
+    /// @dev Calculates the fee part of an amount `assets` that already includes fees.
+    /// Used in {IERC4626-deposit} and {IERC4626-redeem} operations.
     function _feeOnTotal(uint256 assets) private view returns (uint256) {
         uint256 feeBasePoint = _feeBasePoint;
-        return assets.mulDiv(feeBasePoint, _BASIS_POINT_SCALE, Math.Rounding.Floor);
+        return assets.mulDiv(feeBasePoint, feeBasePoint + _BASIS_POINT_SCALE, Math.Rounding.Floor);
     }
 
     function _transferFee(uint256 fee) internal virtual {

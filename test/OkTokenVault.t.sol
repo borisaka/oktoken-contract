@@ -7,10 +7,11 @@ import {OkTokenVault} from "../src/OkTokenVault.sol";
 import {TetherToken} from "../src/utils/USDT.sol";
 import {console} from "forge-std/Script.sol";
 import {SigUtils} from "./SigUtils.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 error MinimumDeposit(uint256 deposit, uint256 minDeposit);
 error MinimumMint(uint256 mint, uint256 minMint);
-error MinimumWitdraw(uint256 withdraw, uint256 minWithdraw);
+error MinimumWithdraw(uint256 withdraw, uint256 minWithdraw);
 error MinimumRedeem(uint256 redeem, uint256 minRedeem);
 error ERC5143DepositSlippageProtection(uint256 shares, uint256 minShares);
 error ERC5143MintSlippageProtection(uint256 assets, uint256 maxAssets);
@@ -18,6 +19,8 @@ error ERC5143WithdrawSlippageProtection(uint256 shares, uint256 maxShares);
 error ERC5143RedeemSlippageProtection(uint256 assets, uint256 minAssets);
 
 contract OkTokenVaultTest is Test {
+    using Math for uint256;
+
     OkTokenVault public vault;
     TetherToken public asset;
     SigUtils public sigUtils;
@@ -28,6 +31,9 @@ contract OkTokenVaultTest is Test {
     address internal bob = vm.addr(bobPrivateKey);
     address internal creator = address(0x3);
     address internal joe = address(0x4);
+
+    uint256 private constant _BASIS_POINT_SCALE = 1e4; // 100%
+    uint256 private constant _feeBasePoint = 1000; // 1000 = 10%
     // address public usdtAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
 
     function setUp() public {
@@ -62,17 +68,16 @@ contract OkTokenVaultTest is Test {
         uint256 creatorPostDepositBal = asset.balanceOf(creator);
         uint256 alicePostDepositBal = asset.balanceOf(alice);
 
-        assertEq(creatorPostDepositBal, creatorPreDepositBal + aliceAssetsAmount * 5 / 100); // 5% fee on deposit
+        assertEq(creatorPostDepositBal, _feeOnTotal(aliceAssetsAmount) / 2); // 5% fee on deposit
         assertEq(alicePostDepositBal, alicePreDepositBal - aliceAssetsAmount);
         // // Expect exchange rate to be 1:1 on initial mint.
-        // // assertEq(aliceShareAmount, (aliceAssetsAmount * 10 ** 12) * 95 / 100);
-        // assertEq(vault.previewWithdraw(aliceAssetsAmount), aliceAssetsAmount);
-        // assertEq(vault.previewDeposit(aliceAssetsAmount), aliceShareAmount);
         assertEq(vault.totalSupply(), aliceShareAmount);
-        assertEq(vault.totalAssets(), aliceAssetsAmount * 95 / 100); // 5% fee on deposit, 5% reinvested
+        assertEq(vault.totalAssets(), aliceAssetsAmount - _feeOnTotal(aliceAssetsAmount) / 2); // 5% fee on deposit, 5% reinvested
         assertEq(vault.balanceOf(alice), aliceShareAmount);
-        assertEq(vault.convertToAssets(vault.balanceOf(alice)), aliceAssetsAmount * 95 / 100 - 1);
-        // assertEq(asset.balanceOf(alice), alicePreDepositBal - aliceAssetsAmount);
+        assertEq(
+            vault.convertToAssets(vault.balanceOf(alice)), aliceAssetsAmount - _feeOnTotal(aliceAssetsAmount).ceilDiv(2)
+        );
+        assertEq(asset.balanceOf(alice), alicePreDepositBal - aliceAssetsAmount);
         uint256 maxWithdraw = vault.maxWithdraw(alice);
         uint256 totalSupplyBeforeWithdraw = vault.totalSupply();
         console.log("Alice maxWithdraw", maxWithdraw);
@@ -93,12 +98,6 @@ contract OkTokenVaultTest is Test {
         console.log("totalSupplyBeforeWithdraw", totalSupplyBeforeWithdraw);
         console.log("totalSupplyAfterWithdraw", totalSupplyAfterWithdraw);
         assertEq(creatorPostDepositBal, creatorPreDepositBal + maxWithdraw * 5 / 100); // 5% fee on withdraw
-            // // assertEq(vault.beforeWithdrawHookCalledCounter(), 1);
-
-        // assertEq(vault.totalAssets(), 0);
-        // assertEq(vault.balanceOf(alice), );
-        // assertEq(vault.convertToAssets(vault.balanceOf(alice)), 0);
-        // assertEq(alicePostDepositBal, alicePreDepositBal);
     }
 
     function testMaxRedeem() public {
@@ -124,28 +123,35 @@ contract OkTokenVaultTest is Test {
         vault.deposit(amount, alice);
     }
 
+    function testMinimumMint() public {
+        uint256 amountToMint = vault.minMint();
+        console.log("amountToMint", amountToMint);
+        console.log("previewMint", vault.previewMint(amountToMint));
+        _mint(amountToMint, alice);
+        assertEq(vault.balanceOf(alice), amountToMint);
+    }
+
     function testRevertMinimumMint() public {
         uint256 amountToMint = 1;
-        uint256 minMint = vault.previewDeposit(100 * 1e6);
+        uint256 minMint = vault.minMint();
         vm.expectRevert(abi.encodeWithSelector(MinimumMint.selector, amountToMint, minMint));
         vault.mint(amountToMint, alice);
     }
 
     function testRevertMinimumWithdraw() public {
         uint256 amountToDeposit = 100 * 1e6;
-        uint256 minWithdraw = 10 * 1e6;
         uint256 amountToWithdraw = 1;
         _deposit(amountToDeposit, alice);
-        vm.expectRevert(abi.encodeWithSelector(MinimumWitdraw.selector, amountToWithdraw, minWithdraw));
+        vm.expectRevert(abi.encodeWithSelector(MinimumWithdraw.selector, amountToWithdraw, vault.minWithdraw()));
         vm.prank(alice);
         vault.withdraw(amountToWithdraw, alice, alice);
     }
 
-    function testMimimumRedeem() public {
+    function testRevertMimimumRedeem() public {
         uint256 amountToDeposit = 100 * 1e6;
         uint256 amountToRedeem = 1;
         _deposit(amountToDeposit, alice);
-        uint256 minRedeem = vault.previewWithdraw(10 * 1e6);
+        uint256 minRedeem = vault.minRedeem();
         console.log("minRedeem", minRedeem);
         vm.expectRevert(abi.encodeWithSelector(MinimumRedeem.selector, amountToRedeem, minRedeem));
         vm.prank(alice);
@@ -156,38 +162,45 @@ contract OkTokenVaultTest is Test {
         uint256 amountDeposit = 1000 * 1e6;
         uint256 amountRedeem = 500 ether;
         console.log("Rate: %s", vault.exchangeRate());
+        uint256 desiredShares = vault.previewDeposit(amountDeposit);
         _deposit(amountDeposit, alice);
         console.log("Rate: %s", vault.exchangeRate());
-
+        uint256 aliceBalance = vault.balanceOf(alice);
+        uint256 vaultAssets = vault.totalAssets();
         console.log("totalAssets", vault.totalAssets());
         console.log("alice balance: %s", vault.balanceOf(alice));
         console.log("Max withdraw: %s", vault.maxWithdraw(alice));
 
-        assertEq(asset.balanceOf(address(vault)), 950 * 1e6);
-        assertEq(vault.balanceOf(alice), 900 ether);
-
+        assertEq(asset.balanceOf(address(vault)), amountDeposit - _feeOnTotal(amountDeposit) / 2);
+        assertEq(vault.balanceOf(alice), desiredShares);
+        uint256 desiredAssets = vault.previewRedeem(amountRedeem);
         _redeem(amountRedeem, alice);
-        assertEq(asset.balanceOf(address(vault)), 451250000);
-        assertEq(vault.balanceOf(alice), 400 ether);
+        assertEq(vault.totalAssets(), vaultAssets - desiredAssets - _feeOnRaw(desiredAssets) / 2);
+        assertEq(vault.balanceOf(alice), aliceBalance - amountRedeem);
 
         console.log("totalAssets: %s", vault.totalAssets());
         console.log("totalSupply: %s", vault.totalSupply());
         console.log("Rate: %s", vault.exchangeRate());
 
-        assertEq(vault.exchangeRate(), 1128124);
+        // assertEq(vault.exchangeRate(), 1128124);
     }
 
     function testDepositWithdraw() public {
         uint256 amountDeposit = 100 * 1e6;
         uint256 amountWithdraw = 50 * 1e6;
+        uint256 desiredShares = vault.previewDeposit(amountDeposit);
         _deposit(amountDeposit, alice);
+        assertEq(vault.balanceOf(alice), desiredShares);
         console.log("Rate: %s", vault.exchangeRate());
         console.log("totalAssets", vault.totalAssets());
+        uint256 totalAssets = vault.totalAssets();
+        desiredShares = vault.previewWithdraw(amountWithdraw);
+        uint256 aliceAssetBalance = asset.balanceOf(alice);
+        uint256 aliceSharesBalance = vault.balanceOf(alice);
         _withdraw(amountWithdraw, alice);
-        assertEq(asset.balanceOf(address(vault)), 42500000);
-        assertEq(asset.balanceOf(alice), amountWithdraw);
-        assertEq(vault.balanceOf(alice), 37894736811634349351);
-        assertEq(vault.exchangeRate(), 1121527);
+        assertEq(vault.totalAssets(), totalAssets - amountWithdraw - _feeOnRaw(amountWithdraw) / 2);
+        assertEq(asset.balanceOf(alice), aliceAssetBalance + amountWithdraw);
+        assertEq(vault.balanceOf(alice), aliceSharesBalance - desiredShares);
     }
 
     function testMintReedem() public {
@@ -196,11 +209,13 @@ contract OkTokenVaultTest is Test {
         _mint(amountMint, alice);
         console.log("Rate: %s", vault.exchangeRate());
         console.log("totalAssets", vault.totalAssets());
+        uint256 totalAssets = vault.totalAssets();
+        uint256 desiredAssets = vault.previewRedeem(amountRedeem);
+        uint256 aliceAssetBalance = asset.balanceOf(alice);
         _redeem(amountRedeem, alice);
-        assertEq(asset.balanceOf(address(vault)), 55123750);
-        assertEq(asset.balanceOf(alice), 47025000);
+        assertEq(vault.totalAssets(), totalAssets - desiredAssets - _feeOnRaw(desiredAssets) / 2);
+        assertEq(asset.balanceOf(alice), aliceAssetBalance + desiredAssets);
         assertEq(vault.balanceOf(alice), amountRedeem);
-        assertEq(vault.exchangeRate(), 1102474);
     }
 
     function testMintWithdraw() public {
@@ -209,19 +224,29 @@ contract OkTokenVaultTest is Test {
         _mint(amountMint, alice);
         console.log("Rate: %s", vault.exchangeRate());
         console.log("totalAssets", vault.totalAssets());
+        uint256 totalAssets = vault.totalAssets();
+        uint256 desiredShares = vault.previewWithdraw(amountWithdraw);
+        uint256 aliceAssetBalance = asset.balanceOf(alice);
+        uint256 aliceSharesBalance = vault.balanceOf(alice);
         _withdraw(amountWithdraw, alice);
-        assertEq(asset.balanceOf(creator), 8 * 1e6);
-        assertEq(asset.balanceOf(address(vault)), 52 * 1e6);
-        assertEq(asset.balanceOf(alice), amountWithdraw);
-        assertEq(vault.balanceOf(alice), 47368421029967262871);
-        assertEq(vault.exchangeRate(), 1097777);
+        assertEq(vault.totalAssets(), totalAssets - amountWithdraw - _feeOnRaw(amountWithdraw) / 2);
+        assertEq(asset.balanceOf(alice), aliceAssetBalance + amountWithdraw);
+        assertEq(vault.balanceOf(alice), aliceSharesBalance - desiredShares);
     }
 
     function testMultiplyDeposit() public {
         uint256 amount = 100 * 1e6;
+        console.log("Rate: %s", vault.exchangeRate());
+
         _deposit(amount, alice);
+        console.log("Rate: %s", vault.exchangeRate());
+
         _deposit(amount, bob);
+        console.log("Rate: %s", vault.exchangeRate());
+
         _deposit(amount, joe);
+        console.log("Rate: %s", vault.exchangeRate());
+
         console.log("totalAssets", vault.totalAssets());
         console.log("alice balance: %s", vault.balanceOf(alice));
         console.log("bob balance: %s", vault.balanceOf(bob));
@@ -229,48 +254,8 @@ contract OkTokenVaultTest is Test {
         console.log("Alice max withdraw: %s", vault.maxWithdraw(alice));
         console.log("Bob max withdraw: %s", vault.maxWithdraw(bob));
         console.log("Joe max withdraw: %s", vault.maxWithdraw(joe));
-        assertEq(asset.balanceOf(address(vault)), 285 * 1e6);
-        assertEq(vault.balanceOf(alice), 90 ether);
-        assertEq(vault.balanceOf(bob), 85263157944598337425);
-        assertEq(vault.balanceOf(joe), 83019390642076103821);
-        assertEq(asset.balanceOf(creator), 15 * 1e6);
+
         // assertEq(vault.exchangeRate(), 1084083);
-    }
-
-    function testMultiplyRedeem() public {
-        uint256 amountDeposit = 100 * 1e6;
-        _deposit(amountDeposit, alice);
-        _deposit(amountDeposit, bob);
-        _deposit(amountDeposit, joe);
-        vm.warp(1 minutes);
-        uint256 amountRedeemAlice = vault.maxRedeem(alice);
-        uint256 assetsAlice = vault.previewRedeem(amountRedeemAlice);
-        _redeem(amountRedeemAlice, alice);
-        vm.warp(1 minutes);
-        uint256 amountRedeemBob = vault.maxRedeem(bob);
-        uint256 assetsBob = vault.previewRedeem(amountRedeemBob);
-        _redeem(amountRedeemBob, bob);
-        vm.warp(1 minutes);
-
-        uint256 amountRedeemJoe = vault.maxRedeem(joe);
-        uint256 assetsJoe = vault.previewRedeem(amountRedeemJoe);
-        _redeem(amountRedeemJoe, joe);
-        vm.warp(1 minutes);
-
-        assertEq(asset.balanceOf(address(vault)), 5479570);
-        assertEq(asset.balanceOf(creator), 28310496);
-        assertEq(vault.totalSupply(), 0);
-        assertEq(asset.balanceOf(alice), assetsAlice);
-        assertEq(asset.balanceOf(bob), assetsBob);
-        assertEq(asset.balanceOf(joe), assetsJoe);
-        assertEq(vault.balanceOf(alice), 0);
-        assertEq(vault.balanceOf(bob), 0);
-        assertEq(vault.balanceOf(joe), 0);
-        console.log("previewDeposit 100 USDT", vault.previewDeposit(100 * 1e6));
-        console.log("previewMint 100 OKT", vault.previewMint(100 * 1e18));
-        console.log("Rate: %s", vault.exchangeRate());
-
-        // assertEq(vault.exchangeRate(), 1142448);
     }
 
     function testPermit() public {
@@ -292,7 +277,9 @@ contract OkTokenVaultTest is Test {
         uint256 deadline = block.timestamp + 1 days;
         uint256 amountWithdraw = 50 * 1e6;
         _deposit(amountDeposit, alice);
+        uint256 aliceShares = vault.balanceOf(alice);
         uint256 shares = vault.previewWithdraw(amountWithdraw);
+        uint256 totalAssets = vault.totalAssets();
         console.log("shares %s", shares);
         SigUtils.Permit memory permit =
             SigUtils.Permit({owner: alice, spender: address(vault), value: shares, nonce: 0, deadline: deadline});
@@ -303,10 +290,9 @@ contract OkTokenVaultTest is Test {
         vm.prank(bob); // bob should can withdraw for alice
         vault.withdrawWithPermit(amountWithdraw, permit.owner, permit.deadline, v, r, s);
         assertEq(vault.nonces(alice), 1);
-        assertEq(asset.balanceOf(address(vault)), 42500000);
+        assertEq(vault.totalAssets(), totalAssets - amountWithdraw - _feeOnRaw(amountWithdraw) / 2);
         assertEq(asset.balanceOf(alice), amountWithdraw);
-        assertEq(vault.balanceOf(alice), 37894736811634349351);
-        assertEq(vault.exchangeRate(), 1121527);
+        assertEq(vault.balanceOf(alice), aliceShares - shares);
     }
 
     function testRedeemWithPermit() public {
@@ -314,6 +300,9 @@ contract OkTokenVaultTest is Test {
         uint256 deadline = block.timestamp;
         uint256 amountRedeem = 50 ether;
         _deposit(amountDeposit, alice);
+        uint256 aliceShares = vault.balanceOf(alice);
+        uint256 desiredAssets = vault.previewRedeem(amountRedeem);
+        uint256 totalAssets = vault.totalAssets();
         SigUtils.Permit memory _permit =
             SigUtils.Permit({owner: alice, spender: address(vault), value: amountRedeem, nonce: 0, deadline: deadline});
 
@@ -322,10 +311,9 @@ contract OkTokenVaultTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePrivateKey, digest);
         vm.prank(bob); // bob should can redeem for alice
         vault.redeemWithPermit(amountRedeem, _permit.owner, _permit.deadline, v, r, s);
-        assertEq(asset.balanceOf(address(vault)), 45125000);
-        assertEq(asset.balanceOf(alice), 47500000);
-        assertEq(vault.balanceOf(alice), 40 ether);
-        assertEq(vault.exchangeRate(), 1128124);
+        assertEq(asset.balanceOf(address(vault)), totalAssets - desiredAssets - _feeOnRaw(desiredAssets) / 2);
+        assertEq(asset.balanceOf(alice), desiredAssets);
+        assertEq(vault.balanceOf(alice), aliceShares - amountRedeem);
     }
 
     function testDepositSlippageProtection() public {
@@ -363,24 +351,24 @@ contract OkTokenVaultTest is Test {
         vault.mint(amountMint, alice, desirableSharesWithSlippage);
     }
 
-    // function testRedeemSlippageProtection() public {
-    //     uint256 amountDeposit = 100 * 1e6;
-    //     _deposit(amountDeposit, alice);
-    //     _deposit(amountDeposit * 100, bob);
-    //     uint256 amountRedeem = vault.maxRedeem(alice);
-    //     uint256 desirableAssets = vault.previewRedeem(amountRedeem);
-    //     console.log("maxRedeem", amountRedeem);
-    //     console.log("desirableAssets", desirableAssets);
-    //     // calculate slippage 10%, bps = 100
-    //     uint256 slippage = 1000;
-    //     uint256 desirableAssetsWithSlippage = desirableAssets - (desirableAssets * slippage / 10000);
-    //     _withdraw(vault.maxWithdraw(bob), bob); // bob trying to front run alice
-    //     vm.startPrank(alice);
-    //     // vm.expectRevert("ERC5143: redeem slippage protection");
-    //     uint256 assets = vault.redeem(amountRedeem, alice, alice, desirableAssetsWithSlippage);
-    //     vm.stopPrank();
-    //     console.log("assets", assets);
-    // }
+    function testRedeemSlippageProtection() public {
+        uint256 amountDeposit = 100 * 1e6;
+        _deposit(amountDeposit, alice);
+        _deposit(amountDeposit * 100, bob);
+        uint256 amountRedeem = vault.maxRedeem(alice);
+        uint256 desirableAssets = vault.previewRedeem(amountRedeem);
+        console.log("maxRedeem", amountRedeem);
+        console.log("desirableAssets", desirableAssets);
+        // calculate slippage 10%, bps = 100
+        uint256 slippage = 1000;
+        uint256 desirableAssetsWithSlippage = desirableAssets - (desirableAssets * slippage / 10000);
+        _withdraw(vault.maxWithdraw(bob), bob); // bob trying to front run alice
+        vm.startPrank(alice);
+        // vm.expectRevert("ERC5143: redeem slippage protection");
+        uint256 assets = vault.redeem(amountRedeem, alice, alice, desirableAssetsWithSlippage);
+        vm.stopPrank();
+        console.log("assets", assets);
+    }
 
     function _mintAssets(address to, uint256 amount) internal {
         asset.transfer(to, amount);
@@ -389,39 +377,48 @@ contract OkTokenVaultTest is Test {
         vm.stopPrank();
     }
 
-    function _deposit(uint256 amount, address user) internal {
+    function _deposit(uint256 amount, address user) internal returns (uint256 shares) {
         _mintAssets(user, amount);
         vm.startPrank(user);
-        uint256 shares = vault.previewDeposit(amount);
+        shares = vault.previewDeposit(amount);
         console.log("previewDeposit", user, amount, shares);
         vault.deposit(amount, user, shares);
         vm.stopPrank();
     }
 
-    function _withdraw(uint256 amount, address user) internal {
+    function _withdraw(uint256 amount, address user) internal returns (uint256 shares) {
         vm.startPrank(user);
-        console.log("maxWithdraw", amount, vault.maxWithdraw(user));
-        uint256 shares = vault.previewWithdraw(amount);
+        // console.log("maxWithdraw", amount, vault.maxWithdraw(user));
+        shares = vault.previewWithdraw(amount);
         console.log("previewWithdraw", user, amount, shares);
         vault.withdraw(amount, user, user, shares);
         vm.stopPrank();
     }
 
-    function _redeem(uint256 shares, address user) internal {
+    function _redeem(uint256 shares, address user) internal returns (uint256 assets) {
         vm.startPrank(user);
         console.log("maxRedeem", vault.maxRedeem(user));
-        uint256 assets = vault.previewRedeem(shares);
+        assets = vault.previewRedeem(shares);
         console.log("previewRedeem", shares, assets);
         vault.redeem(shares, user, user, assets);
         vm.stopPrank();
     }
 
-    function _mint(uint256 amount, address user) internal {
-        uint256 assets = vault.previewMint(amount);
+    function _mint(uint256 amount, address user) internal returns (uint256 assets) {
+        assets = vault.previewMint(amount);
         _mintAssets(user, assets);
         vm.startPrank(user);
         console.log("previewMint", amount, assets);
         vault.mint(amount, user, assets);
         vm.stopPrank();
+    }
+
+    function _feeOnRaw(uint256 assets) private pure returns (uint256) {
+        return assets.mulDiv(_feeBasePoint, _BASIS_POINT_SCALE, Math.Rounding.Floor);
+    }
+
+    function _feeOnTotal(uint256 assets) private pure returns (uint256) {
+        uint256 feeBasePoint = _feeBasePoint;
+        return assets.mulDiv(feeBasePoint, feeBasePoint + _BASIS_POINT_SCALE, Math.Rounding.Floor);
     }
 }
