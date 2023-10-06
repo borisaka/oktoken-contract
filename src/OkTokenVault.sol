@@ -9,7 +9,6 @@ import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.so
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ERC4626Fees} from "./ERC4626Fees.sol";
 import {ERC5143} from "./ERC5143.sol";
-import {console} from "forge-std/Script.sol";
 
 error MinimumDeposit(uint256 deposit, uint256 minDeposit);
 error MinimumMint(uint256 mint, uint256 minMint);
@@ -44,8 +43,6 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
 
     function previewMint(uint256 shares) public view override(ERC4626Fees, ERC4626) returns (uint256 assets) {
         assets = super.previewMint(shares);
-        console.log("exchange rate", exchangeRate());
-        console.log("previewMint", shares, assets);
         if (assets < minDeposit()) {
             revert MinimumMint(shares, minMint());
         }
@@ -149,6 +146,24 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
     }
 
     /**
+     * @dev Internal conversion function (from assets to shares) with support for rounding direction.
+     */
+    function _convertToShares(uint256 assets, Math.Rounding rounding)
+        internal
+        view
+        virtual
+        override(ERC4626)
+        returns (uint256)
+    {
+        uint256 supply = totalSupply();
+        uint256 total = totalAssets();
+        if (total > 0 && supply == 0) {
+            return assets.mulDiv(1e18, totalAssets(), rounding);
+        }
+        return assets.mulDiv(supply + 10 ** _decimalsOffset(), totalAssets() + 1, rounding);
+    }
+
+    /**
      * @dev Internal conversion function (from shares to assets) with support for rounding direction.
      */
     function _convertToAssets(uint256 shares, Math.Rounding rounding)
@@ -161,7 +176,7 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
         uint256 supply = totalSupply();
         uint256 assets = totalAssets();
         if (assets > 0 && supply == 0) {
-            return shares.mulDiv(assets, 10 ** 18, rounding);
+            return shares.mulDiv(assets, 1e18, rounding);
         }
         return shares.mulDiv(assets + 1, supply + 10 ** _decimalsOffset(), rounding);
     }

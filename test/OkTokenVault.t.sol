@@ -55,6 +55,13 @@ contract OkTokenVaultTest is Test {
         // console.log("Token Vault decimals: %s", vault.decimals());
     }
 
+    function test_PreFillAssets() public {
+        asset.transfer(address(vault), 5 * 1e6);
+        assertEq(vault.exchangeRate(), 5 * 1e6);
+        uint256 shares = _deposit(100 * 1e6, alice);
+        assertEq(vault.balanceOf(alice), shares);
+    }
+
     function testInitialExchangeRate() public {
         assertEq(vault.exchangeRate(), 1000000);
     }
@@ -65,7 +72,7 @@ contract OkTokenVaultTest is Test {
         _mint(100 ether, alice);
         _redeem(100 ether, alice);
         assertEq(vault.totalSupply(), 0);
-        assertEq(vault.convertToShares(oneUSD), oneUSD.mulDiv(1e12, vault.totalAssets() + 1, Math.Rounding.Floor));
+        assertEq(vault.convertToShares(oneUSD), oneUSD.mulDiv(1e18, vault.totalAssets(), Math.Rounding.Floor));
         assertEq(vault.exchangeRate(), vault.totalAssets());
     }
 
