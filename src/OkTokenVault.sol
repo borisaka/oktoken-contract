@@ -147,4 +147,22 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
     function _decimalsOffset() internal view virtual override(ERC4626) returns (uint8) {
         return _OFFSET;
     }
+
+    /**
+     * @dev Internal conversion function (from shares to assets) with support for rounding direction.
+     */
+    function _convertToAssets(uint256 shares, Math.Rounding rounding)
+        internal
+        view
+        virtual
+        override(ERC4626)
+        returns (uint256)
+    {
+        uint256 supply = totalSupply();
+        uint256 assets = totalAssets();
+        if (assets > 0 && supply == 0) {
+            return shares.mulDiv(assets, 10 ** 18, rounding);
+        }
+        return shares.mulDiv(assets + 1, supply + 10 ** _decimalsOffset(), rounding);
+    }
 }

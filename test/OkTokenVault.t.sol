@@ -55,6 +55,20 @@ contract OkTokenVaultTest is Test {
         // console.log("Token Vault decimals: %s", vault.decimals());
     }
 
+    function testInitialExchangeRate() public {
+        assertEq(vault.exchangeRate(), 1000000);
+    }
+
+    function testZeroSupplyExchangeRate() public {
+        uint256 oneUSD = 1 * 1e6;
+        assertEq(vault.exchangeRate(), 1000000);
+        _mint(100 ether, alice);
+        _redeem(100 ether, alice);
+        assertEq(vault.totalSupply(), 0);
+        assertEq(vault.convertToShares(oneUSD), oneUSD.mulDiv(1e12, vault.totalAssets() + 1, Math.Rounding.Floor));
+        assertEq(vault.exchangeRate(), vault.totalAssets());
+    }
+
     function testSingleDepositWithdraw() public {
         uint256 aliceAssetsAmount = 100 * 1e6;
         assertEq(vault.totalAssets(), 0);
