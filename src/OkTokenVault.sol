@@ -27,6 +27,8 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
         uint256 fee;
     }
 
+    event ExchangeRateUpdated(uint256 rate, uint256 timestamp);
+
     constructor(address assetAddress, address feeRecipient)
         ERC20("OkToken", "OKT")
         ERC4626(IERC20(assetAddress))
@@ -127,14 +129,16 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
         internal
         override(ERC4626Fees, ERC4626)
     {
-        return super._deposit(caller, receiver, assets, shares);
+        super._deposit(caller, receiver, assets, shares);
+        emit ExchangeRateUpdated(exchangeRate(), block.timestamp);
     }
 
     function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 shares)
         internal
         override(ERC4626Fees, ERC4626)
     {
-        return super._withdraw(caller, receiver, owner, assets, shares);
+        super._withdraw(caller, receiver, owner, assets, shares);
+        emit ExchangeRateUpdated(exchangeRate(), block.timestamp);
     }
 
     function decimals() public view virtual override(ERC20, ERC4626) returns (uint8) {

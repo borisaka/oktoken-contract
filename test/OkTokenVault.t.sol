@@ -2,21 +2,12 @@
 pragma solidity 0.8.21;
 
 import "forge-std/Test.sol";
-import {ERC20} from "lib/solmate/src/tokens/ERC20.sol";
-import {OkTokenVault} from "../src/OkTokenVault.sol";
+import "../src/ERC5143.sol";
+import "../src/OkTokenVault.sol";
 import {TetherToken} from "../src/utils/USDT.sol";
 import {console} from "forge-std/Script.sol";
 import {SigUtils} from "./SigUtils.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-
-error MinimumDeposit(uint256 deposit, uint256 minDeposit);
-error MinimumMint(uint256 mint, uint256 minMint);
-error MinimumWithdraw(uint256 withdraw, uint256 minWithdraw);
-error MinimumRedeem(uint256 redeem, uint256 minRedeem);
-error ERC5143DepositSlippageProtection(uint256 shares, uint256 minShares);
-error ERC5143MintSlippageProtection(uint256 assets, uint256 maxAssets);
-error ERC5143WithdrawSlippageProtection(uint256 shares, uint256 maxShares);
-error ERC5143RedeemSlippageProtection(uint256 assets, uint256 minAssets);
 
 contract OkTokenVaultTest is Test {
     using Math for uint256;
@@ -35,6 +26,9 @@ contract OkTokenVaultTest is Test {
     uint256 private constant _BASIS_POINT_SCALE = 1e4; // 100%
     uint256 private constant _feeBasePoint = 1000; // 1000 = 10%
     // address public usdtAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+
+    event ExchangeRateUpdated(uint256 rate, uint256 timestamp);
+    event Transfer(address indexed from, address indexed to, uint256 value);
 
     function setUp() public {
         vm.label(address(this), "OkTokenVaultTest");
@@ -55,7 +49,7 @@ contract OkTokenVaultTest is Test {
         // console.log("Token Vault decimals: %s", vault.decimals());
     }
 
-    function test_PreFillAssets() public {
+    function testPreFillAssets() public {
         asset.transfer(address(vault), 5 * 1e6);
         assertEq(vault.exchangeRate(), 5 * 1e6);
         uint256 shares = _deposit(100 * 1e6, alice);
@@ -389,6 +383,17 @@ contract OkTokenVaultTest is Test {
         uint256 assets = vault.redeem(amountRedeem, alice, alice, desirableAssetsWithSlippage);
         vm.stopPrank();
         console.log("assets", assets);
+    }
+
+    function testExpectEmitExchangeRateUpdated() public {
+        uint256 amountDeposit = 100 * 1e6;
+        _mintAssets(alice, amountDeposit);
+        vm.startPrank(alice);
+        uint256 shares = vault.previewDeposit(amountDeposit);
+        vm.expectEmit(false, false, false, false);
+        emit ExchangeRateUpdated(1000000, 1);
+        vault.deposit(amountDeposit, alice, shares);
+        vm.stopPrank();
     }
 
     function _mintAssets(address to, uint256 amount) internal {
