@@ -23,9 +23,8 @@ contract OkTokenVaultTest is Test {
     address internal creator = address(0x3);
     address internal joe = address(0x4);
 
-    uint256 private constant _BASIS_POINT_SCALE = 1e4; // 100%
-    uint256 private constant _feeBasePoint = 1000; // 1000 = 10%
-    // address public usdtAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    uint256 private constant _BASIS_POINT_SCALE = 1e27; // 100%
+    uint256 private constant _feeBasePoint = 111111111111111111111111111; // 11,11111111111111111111111111%
 
     event ExchangeRateUpdated(uint256 rate, uint256 timestamp);
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -41,7 +40,8 @@ contract OkTokenVaultTest is Test {
         // asset = TetherToken(0x96a29905AeBa57B5E8516C6d21411802dAeA84f2);
         // vault = OkTokenVault(0xA5481e4298Dfea620Dd664429e52A17461250E94);
         sigUtils = new SigUtils(vault.DOMAIN_SEPARATOR());
-        // asset.mint(address(vault), 1 * 1e6); // 100 USDT initial deposit
+
+        // asset.transfer(address(vault), 1 * 1e6); // 1 USDT initial deposit
         // asset.approve(address(vault), 100 * 1e6);
         // uint256 shares = vault.previewDeposit(100 * 1e6);
         // vault.deposit(100 * 1e6, address(this), shares);
@@ -83,11 +83,11 @@ contract OkTokenVaultTest is Test {
         uint256 creatorPostDepositBal = asset.balanceOf(creator);
         uint256 alicePostDepositBal = asset.balanceOf(alice);
 
-        assertEq(creatorPostDepositBal, _feeOnTotal(aliceAssetsAmount) / 2); // 5% fee on deposit
+        assertEq(creatorPostDepositBal, _feeOnTotal(aliceAssetsAmount) / 2); // 50% of fee on deposit
         assertEq(alicePostDepositBal, alicePreDepositBal - aliceAssetsAmount);
         // // Expect exchange rate to be 1:1 on initial mint.
         assertEq(vault.totalSupply(), aliceShareAmount);
-        assertEq(vault.totalAssets(), aliceAssetsAmount - _feeOnTotal(aliceAssetsAmount) / 2); // 5% fee on deposit, 5% reinvested
+        assertEq(vault.totalAssets(), aliceAssetsAmount - _feeOnTotal(aliceAssetsAmount) / 2); // 50% of fee on deposit, 50% reinvested
         assertEq(vault.balanceOf(alice), aliceShareAmount);
         assertEq(
             vault.convertToAssets(vault.balanceOf(alice)), aliceAssetsAmount - _feeOnTotal(aliceAssetsAmount).ceilDiv(2)
@@ -112,7 +112,7 @@ contract OkTokenVaultTest is Test {
         console.log("Total assets", vault.totalAssets());
         console.log("totalSupplyBeforeWithdraw", totalSupplyBeforeWithdraw);
         console.log("totalSupplyAfterWithdraw", totalSupplyAfterWithdraw);
-        assertEq(creatorPostDepositBal, creatorPreDepositBal + maxWithdraw * 5 / 100); // 5% fee on withdraw
+        assertEq(creatorPostDepositBal, creatorPreDepositBal + (_feeOnRaw(maxWithdraw) / 2)); // half of fee on withdraw
     }
 
     function testMaxRedeem() public {
@@ -127,7 +127,7 @@ contract OkTokenVaultTest is Test {
         uint256 assets = vault.previewRedeem(amountRedeem);
         console.log("previewRedeem", vault.previewRedeem(amountRedeem));
         _redeem(amountRedeem, alice);
-        assertEq(asset.balanceOf(address(vault)), vaultAssets - (assets * 105 / 100));
+        assertEq(asset.balanceOf(address(vault)), vaultAssets - (assets + _feeOnRaw(assets) / 2));
         assertEq(asset.balanceOf(alice), assets);
     }
 
@@ -250,7 +250,7 @@ contract OkTokenVaultTest is Test {
     }
 
     function testMultiplyDeposit() public {
-        uint256 amount = 100 * 1e6;
+        uint256 amount = 5000 * 1e6;
         console.log("Rate: %s", vault.exchangeRate());
 
         _deposit(amount, alice);

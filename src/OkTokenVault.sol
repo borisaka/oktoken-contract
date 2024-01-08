@@ -32,7 +32,7 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
     constructor(address assetAddress, address feeRecipient)
         ERC20("OkToken", "OKT")
         ERC4626(IERC20(assetAddress))
-        ERC4626Fees(feeRecipient, 1000) // 10%
+        ERC4626Fees(feeRecipient)
         ERC20Permit("OkToken")
     {}
 
