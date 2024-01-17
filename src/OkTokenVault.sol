@@ -7,6 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC4626Fees} from "./ERC4626Fees.sol";
 import {ERC5143} from "./ERC5143.sol";
 
@@ -17,9 +18,10 @@ error MinimumRedeem(uint256 redeem, uint256 minRedeem);
 
 contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
     using Math for uint256;
+    using SafeERC20 for IERC20;
 
     uint8 private constant _OFFSET = 12; // 18 - 6
-    uint256 private constant MINIMUM_DEPOSIT = 100 * 1e6; // 100 USDT
+    uint256 private constant MINIMUM_DEPOSIT = 10 * 1e6; // 10 USDT
     uint256 private constant MINIMUM_WITHDRAW = 10 * 1e6; // 10 USDT
 
     struct WithdrawParams {
@@ -34,7 +36,11 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
         ERC4626(IERC20(assetAddress))
         ERC4626Fees(feeRecipient)
         ERC20Permit("OkToken")
-    {}
+    {
+        uint256 inititalDeposit = 1;
+        _mint(address(this), inititalDeposit * 1e18);
+        IERC20(assetAddress).safeTransferFrom(msg.sender, address(this), inititalDeposit * 1e6);
+    }
 
     function previewDeposit(uint256 assets) public view override(ERC4626Fees, ERC4626) returns (uint256 shares) {
         if (assets < MINIMUM_DEPOSIT) {
@@ -147,41 +153,5 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
 
     function _decimalsOffset() internal view virtual override(ERC4626) returns (uint8) {
         return _OFFSET;
-    }
-
-    /**
-     * @dev Internal conversion function (from assets to shares) with support for rounding direction.
-     */
-    function _convertToShares(uint256 assets, Math.Rounding rounding)
-        internal
-        view
-        virtual
-        override(ERC4626)
-        returns (uint256)
-    {
-        uint256 supply = totalSupply();
-        uint256 total = totalAssets();
-        if (total > 0 && supply == 0) {
-            return assets.mulDiv(1e18, totalAssets(), rounding);
-        }
-        return assets.mulDiv(supply + 10 ** _decimalsOffset(), totalAssets() + 1, rounding);
-    }
-
-    /**
-     * @dev Internal conversion function (from shares to assets) with support for rounding direction.
-     */
-    function _convertToAssets(uint256 shares, Math.Rounding rounding)
-        internal
-        view
-        virtual
-        override(ERC4626)
-        returns (uint256)
-    {
-        uint256 supply = totalSupply();
-        uint256 assets = totalAssets();
-        if (assets > 0 && supply == 0) {
-            return shares.mulDiv(assets, 1e18, rounding);
-        }
-        return shares.mulDiv(assets + 1, supply + 10 ** _decimalsOffset(), rounding);
     }
 }
