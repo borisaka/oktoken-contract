@@ -10,8 +10,9 @@ abstract contract ERC4626Fees is ERC4626 {
     using Math for uint256;
 
     uint256 private constant _BASIS_POINT_SCALE = 1e27; // 100%
-    uint256 private constant _feeBasePoint = 111111111111111111111111111; 
+    uint256 private constant _feeBasePoint = 111111111111111111111111111;
     address private immutable _feeRecipient;
+    uint256 private constant _feeToTransfer = 3e26; // 30% to fee recipient, 70% hold on vault.
 
     constructor(address feeRecipient_) {
         require(feeRecipient_ != address(0), "ZERO_ADDRESS");
@@ -98,7 +99,8 @@ abstract contract ERC4626Fees is ERC4626 {
     function _transferFee(uint256 fee) internal virtual {
         address recipient = _feeRecipient;
         if (fee > 0 && recipient != address(this)) {
-            SafeERC20.safeTransfer(IERC20(asset()), recipient, fee / 2); // Half to recipient, half hold on vault.
+            uint256 feeToTransfer = fee.mulDiv(_feeToTransfer, _BASIS_POINT_SCALE, Math.Rounding.Floor); // 30% to fee recipient, 70% hold on vault.
+            SafeERC20.safeTransfer(IERC20(asset()), recipient, feeToTransfer);
         }
     }
 }
