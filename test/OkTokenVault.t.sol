@@ -39,7 +39,7 @@ contract OkTokenVaultTest is Test {
         asset = new TetherToken(type(uint256).max, "USDT", "USDT", 6);
         asset.transfer(msg.sender, 1 * 1e6);
         uint64 nonce = vm.getNonce(msg.sender);
-        address vaultAddress = _computeContractAddress(msg.sender, nonce);
+        address vaultAddress = vm.computeCreateAddress(msg.sender, nonce);
         vm.startPrank(msg.sender);
         asset.approve(vaultAddress, 1 * 1e6);
         vault = new OkTokenVault(address(asset), creator);
@@ -85,7 +85,7 @@ contract OkTokenVaultTest is Test {
         uint256 creatorPostDepositBal = asset.balanceOf(creator);
         uint256 alicePostDepositBal = asset.balanceOf(alice);
         console.log("creatorPostDepositBal", creatorPostDepositBal);
-        assertEq(creatorPostDepositBal, creatorPreDepositBal +  _feeOnTotal(aliceAssetsAmount).mulDiv(3e26, 1e27)); 
+        assertEq(creatorPostDepositBal, creatorPreDepositBal + _feeOnTotal(aliceAssetsAmount).mulDiv(3e26, 1e27));
         console.log("alicePostDepositBal", alicePostDepositBal);
         assertEq(alicePostDepositBal, alicePreDepositBal - aliceAssetsAmount);
         // // Expect exchange rate to be 1:1 on initial mint.
@@ -116,7 +116,7 @@ contract OkTokenVaultTest is Test {
         console.log("totalSupplyBeforeWithdraw", totalSupplyBeforeWithdraw);
         console.log("totalSupplyAfterWithdraw", totalSupplyAfterWithdraw);
         // Creator should receive 30% of fee on withdraw
-        assertEq(creatorPostDepositBal, creatorPreDepositBal + (_feeOnRaw(maxWithdraw).mulDiv(3e26, 1e27))); 
+        assertEq(creatorPostDepositBal, creatorPreDepositBal + (_feeOnRaw(maxWithdraw).mulDiv(3e26, 1e27)));
     }
 
     function testMaxRedeem() public {
@@ -331,7 +331,9 @@ contract OkTokenVaultTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePrivateKey, digest);
         vm.prank(bob); // bob should can redeem for alice
         vault.redeemWithPermit(amountRedeem, _permit.owner, _permit.deadline, v, r, s);
-        assertEq(asset.balanceOf(address(vault)), totalAssets - desiredAssets - _feeOnRaw(desiredAssets).mulDiv(3e26, 1e27));
+        assertEq(
+            asset.balanceOf(address(vault)), totalAssets - desiredAssets - _feeOnRaw(desiredAssets).mulDiv(3e26, 1e27)
+        );
         assertEq(asset.balanceOf(alice), desiredAssets);
         assertEq(vault.balanceOf(alice), aliceShares - amountRedeem);
     }
@@ -451,24 +453,5 @@ contract OkTokenVaultTest is Test {
     function _feeOnTotal(uint256 assets) private pure returns (uint256) {
         uint256 feeBasePoint = _feeBasePoint;
         return assets.mulDiv(feeBasePoint, feeBasePoint + _BASIS_POINT_SCALE, Math.Rounding.Floor);
-    }
-
-    function _computeContractAddress(address deployer, uint256 nonce) private pure returns (address) {
-        bytes memory data;
-        if (nonce == 0x00) {
-            data = abi.encodePacked(bytes1(0xd6), bytes1(0x94), deployer);
-        } else if (nonce <= 0x7f) {
-            data = abi.encodePacked(bytes1(0xd6), bytes1(0x94), deployer, uint8(nonce));
-        } else if (nonce <= 0xff) {
-            data = abi.encodePacked(bytes1(0xd7), bytes1(0x94), deployer, bytes1(0x81), uint8(nonce));
-        } else if (nonce <= 0xffff) {
-            data = abi.encodePacked(bytes1(0xd8), bytes1(0x94), deployer, bytes1(0x82), uint16(nonce));
-        } else if (nonce <= 0xffffff) {
-            data = abi.encodePacked(bytes1(0xd9), bytes1(0x94), deployer, bytes1(0x83), uint24(nonce));
-        } else {
-            data = abi.encodePacked(bytes1(0xda), bytes1(0x94), deployer, bytes1(0x84), uint32(nonce));
-        }
-
-        return address(uint160(uint256(keccak256(data))));
     }
 }

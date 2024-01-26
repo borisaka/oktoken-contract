@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.21;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
@@ -24,11 +23,6 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
     uint256 private constant MINIMUM_DEPOSIT = 10 * 1e6; // 10 USDT
     uint256 private constant MINIMUM_WITHDRAW = 10 * 1e6; // 10 USDT
 
-    struct WithdrawParams {
-        uint256 assets;
-        uint256 fee;
-    }
-
     event ExchangeRateUpdated(uint256 rate, uint256 timestamp);
 
     constructor(address assetAddress, address feeRecipient)
@@ -38,7 +32,10 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
         ERC20Permit("OkToken")
     {
         uint256 inititalDeposit = 1;
+        // mint 1 OKT to contract address
         _mint(address(this), inititalDeposit * 1e18);
+        // transfer 1 USDT from msg.sender to contract address
+        // ensure msg.sender has enough USDT and approved this contract to spend 1 USDT
         IERC20(assetAddress).safeTransferFrom(msg.sender, address(this), inititalDeposit * 1e6);
     }
 
