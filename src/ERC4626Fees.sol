@@ -54,7 +54,7 @@ abstract contract ERC4626Fees is ERC4626 {
 
     function maxWithdraw(address owner) public view virtual override returns (uint256) {
         uint256 assets = super.maxWithdraw(owner);
-        return assets - _feeOnRaw(assets);
+        return assets - _feeOnTotal(assets);
     }
 
     function maxRedeem(address owner) public view virtual override returns (uint256) {
@@ -88,20 +88,20 @@ abstract contract ERC4626Fees is ERC4626 {
     /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees.
     /// Used in {IERC4626-mint} and {IERC4626-withdraw} operations.
     function _feeOnRaw(uint256 assets) private pure returns (uint256) {
-        return assets.mulDiv(_feeBasePoint, _BASIS_POINT_SCALE, Math.Rounding.Floor);
+        return assets.mulDiv(_feeBasePoint, _BASIS_POINT_SCALE, Math.Rounding.Ceil);
     }
 
     /// @dev Calculates the fee part of an amount `assets` that already includes fees.
     /// Used in {IERC4626-deposit} and {IERC4626-redeem} operations.
     function _feeOnTotal(uint256 assets) private pure returns (uint256) {
         uint256 feeBasePoint = _feeBasePoint;
-        return assets.mulDiv(feeBasePoint, feeBasePoint + _BASIS_POINT_SCALE, Math.Rounding.Floor);
+        return assets.mulDiv(feeBasePoint, feeBasePoint + _BASIS_POINT_SCALE, Math.Rounding.Ceil);
     }
 
     function _transferFee(uint256 fee) internal virtual {
         address recipient = _feeRecipient;
         if (fee > 0 && recipient != address(this)) {
-            uint256 feeToTransfer = fee.mulDiv(_feeToTransfer, _BASIS_POINT_SCALE, Math.Rounding.Floor); // 30% to fee recipient, 70% hold on vault.
+            uint256 feeToTransfer = fee.mulDiv(_feeToTransfer, _BASIS_POINT_SCALE, Math.Rounding.Ceil); // 30% to fee recipient, 70% hold on vault.
             IERC20(asset()).safeTransfer(recipient, feeToTransfer);
         }
     }
