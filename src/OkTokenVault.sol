@@ -8,14 +8,17 @@ import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.so
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC4626Fees} from "./ERC4626Fees.sol";
-import {ERC5143} from "./ERC5143.sol";
 
 error MinimumDeposit(uint256 deposit, uint256 minDeposit);
 error MinimumMint(uint256 mint, uint256 minMint);
 error MinimumWithdraw(uint256 withdraw, uint256 minWithdraw);
 error MinimumRedeem(uint256 redeem, uint256 minRedeem);
+error ERC5143DepositSlippageProtection(uint256 shares, uint256 minShares);
+error ERC5143MintSlippageProtection(uint256 assets, uint256 maxAssets);
+error ERC5143WithdrawSlippageProtection(uint256 shares, uint256 maxShares);
+error ERC5143RedeemSlippageProtection(uint256 assets, uint256 minAssets);
 
-contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
+contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
     using Math for uint256;
     using SafeERC20 for IERC20;
 
@@ -93,31 +96,90 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
         return previewDeposit(MINIMUM_DEPOSIT);
     }
 
-    function withdrawWithPermit(uint256 assets, address owner, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
-        external
+    function deposit(uint256 assets, address receiver, uint256 minShares) public virtual returns (uint256) {
+        uint256 shares = super.deposit(assets, receiver);
+        if (shares < minShares) {
+            revert ERC5143DepositSlippageProtection(shares, minShares);
+        }
+        return shares;
+    }
+
+    function mint(uint256 shares, address receiver, uint256 maxAssets) public virtual returns (uint256) {
+        uint256 assets = super.mint(shares, receiver);
+        if (assets > maxAssets) {
+            revert ERC5143MintSlippageProtection(assets, maxAssets);
+        }
+        return assets;
+    }
+
+    function withdraw(uint256 assets, address receiver, address owner, uint256 maxShares)
+        public
+        virtual
         returns (uint256)
     {
+        uint256 shares = super.withdraw(assets, receiver, owner);
+        if (shares > maxShares) {
+            revert ERC5143WithdrawSlippageProtection(shares, maxShares);
+        }
+        return shares;
+    }
+
+    function redeem(uint256 shares, address receiver, address owner, uint256 minAssets)
+        public
+        virtual
+        returns (uint256)
+    {
+        uint256 assets = super.redeem(shares, receiver, owner);
+        if (assets < minAssets) {
+            revert ERC5143RedeemSlippageProtection(assets, minAssets);
+        }
+        return assets;
+    }
+
+    function withdrawWithPermit(
+        uint256 assets,
+        uint256 maxShares,
+        address owner,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external returns (uint256) {
         uint256 maxAssets = maxWithdraw(owner);
         if (assets > maxAssets) {
             revert ERC4626ExceededMaxWithdraw(owner, assets, maxAssets);
         }
 
         uint256 shares = previewWithdraw(assets);
+
+        if (shares > maxShares) {
+            revert ERC5143WithdrawSlippageProtection(shares, maxShares);
+        }
+
         permit(owner, address(this), shares, deadline, v, r, s);
         _withdraw(address(this), owner, owner, assets, shares);
         return shares;
     }
 
-    function redeemWithPermit(uint256 shares, address owner, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
-        external
-        returns (uint256)
-    {
+    function redeemWithPermit(
+        uint256 shares,
+        uint256 minAssets,
+        address owner,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external returns (uint256) {
         uint256 maxShares = maxRedeem(owner);
         if (shares > maxShares) {
             revert ERC4626ExceededMaxRedeem(owner, shares, maxShares);
         }
 
         uint256 assets = previewRedeem(shares);
+
+        if (assets < minAssets) {
+            revert ERC5143RedeemSlippageProtection(assets, minAssets);
+        }
         permit(owner, address(this), shares, deadline, v, r, s);
         _withdraw(address(this), owner, owner, assets, shares);
 
@@ -142,6 +204,14 @@ contract OkTokenVault is ERC20, ERC4626, ERC5143, ERC4626Fees, ERC20Permit {
     {
         super._withdraw(caller, receiver, owner, assets, shares);
         emit ExchangeRateUpdated(exchangeRate(), block.timestamp);
+    }
+
+    function maxDeposit(address) public pure override(ERC4626) returns (uint256) {
+        return type(uint128).max;
+    }
+
+    function maxMint(address) public pure override(ERC4626) returns (uint256) {
+        return type(uint128).max;
     }
 
     function decimals() public view virtual override(ERC20, ERC4626) returns (uint8) {

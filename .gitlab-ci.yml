@@ -40,6 +40,37 @@ stages:
       --set "ingress.tls=true"
     - echo ${BR}-${CI_PROJECT_NAME}.${DOMAIN}
 
+.deploy-helm-mr:
+  stage: deploy
+  image:
+    name: dtzar/helm-kubectl
+  script:
+    - mkdir -p ~/.kube && echo ${KUBE_CONFIG} | base64 -d > ~/.kube/config
+    - helm repo add --username $CI_REGISTRY_USER --password $CI_REGISTRY_PASS lpm https://$CI_REGISTRY_HELM/stable
+    - envsubst < ./.helm/values-rendering.yaml > ./.helm/values.yaml
+    - export BR=$(echo $CI_COMMIT_REF_NAME | tr / -)
+    - echo $BR
+    - helm upgrade --install -n ${CI_PROJECT_NAMESPACE} ${CI_PROJECT_NAME}-${BR} lpm/lpm -f ./.helm/values.yaml
+      --set image.repository=${IMAGE_TAG}
+      --set image.tag=${BR}${CI_COMMIT_SHORT_SHA}
+      --set configs.COMMIT_HASH=${CI_COMMIT_SHA}
+      --set ingress.enabled=true
+      --set ingress.hosts=${BR}${CI_MERGE_REQUEST_ID}-${CI_PROJECT_NAME}.dev.${DOMAIN}
+      --set "ingress.tls=true"
+    - echo ${BR}${CI_MERGE_REQUEST_ID}-${CI_PROJECT_NAME}.dev.${DOMAIN}    
+    
+build-images-feature:
+  extends: .build-images
+  environment: feature
+  except:
+    - tags
+    - main
+    - rc
+    - develop
+    - dev
+  tags:
+    - k8s-runner01
+
 build-images-develop:
   extends: .build-images
   environment: develop
@@ -55,6 +86,19 @@ build-images-production:
     - k8s-runner01
   only:
     - tags
+
+deploy-feature:
+  extends: .deploy-helm-mr
+  environment: feature
+  tags:
+    - k8s-runner01
+  except:
+    - tags
+    - main
+    - rc
+    - develop
+    - dev
+  when: manual
 
 deploy-develop:
   extends: .deploy-helm
