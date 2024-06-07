@@ -4,7 +4,7 @@ pragma solidity ^0.8.21;
 import {Script, console} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 import {OkTokenVault} from "../src/OkTokenVault.sol";
-import {TestUSDT} from "../src/TestUSDT.sol";
+import {TestUSDT} from "../src/test_utils/TestUSDT.sol";
 
 address constant feeRecipient = 0x6e6Ea664E482b32019c4d45B639C12E643C3B3b5;
 // address constant assetAddress = 0x0fba5f964d91A9DE6237011bDd55aeDd575b3502;
