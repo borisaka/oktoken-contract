@@ -3,7 +3,7 @@ pragma solidity ^0.8.21;
 
 import {Script, console} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
-import {Multicall3} from "../src/Multicall3.sol";
+import {Multicall3} from "../src/test_utils/Multicall3.sol";
 
 contract MulticallScript is Script {
     address vaultAddress;

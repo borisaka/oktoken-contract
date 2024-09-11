@@ -3,7 +3,7 @@ pragma solidity ^0.8.21;
 
 import {Script, console} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
-import {TestUSDT} from "../src/TestUSDT.sol";
+import {TestUSDT} from "../src/test_utils/TestUSDT.sol";
 
 contract OkTokenScript is Script {
     address vaultAddress;

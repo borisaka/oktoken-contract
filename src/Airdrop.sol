@@ -8,7 +8,7 @@ import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProo
 import {Roles} from "./Roles.sol";
 
 contract Airdrop is AccessControl, Ownable {
-    // bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     struct TokenDrop {
@@ -42,8 +42,12 @@ contract Airdrop is AccessControl, Ownable {
 
     constructor(address tokenAddress, address admin) Ownable(admin) {
         _token = IERC20(tokenAddress);
+        // _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(ADMIN_ROLE, admin);
         _grantRole(MINTER_ROLE, admin);
+        _setRoleAdmin(MINTER_ROLE, ADMIN_ROLE);
+        // _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         // transferOwnership(admin);
         // _setupRole(DEFAULT_ADMIN_ROLE, admin);
@@ -55,15 +59,23 @@ contract Airdrop is AccessControl, Ownable {
     // _;
     // }
 
+    function isMinter(address account) public view returns (bool) {
+        return
+            hasRole(MINTER_ROLE, account) ||
+            hasRole(ADMIN_ROLE, account) ||
+            hasRole(DEFAULT_ADMIN_ROLE, account);
+    }
+
     function createTokenDrop(
         string calldata dropName,
         bytes32 root,
         uint256 total
     ) external onlyRole(MINTER_ROLE) {
-        uint256 reservedTotal = reservedBalance + total;
-        require(_getTokenBalance() >= reservedTotal, "insufficient balance");
+        // uint256 reservedTotal = reservedBalance + total;
+        require(_token.balanceOf(msg.sender) >= total, "insufficient balance");
         bytes32 nameHash = keccak256(bytes(dropName));
         require(drops[nameHash].creator == address(0), "name already exists");
+        _token.transferFrom(msg.sender, address(this), total);
 
         drops[nameHash] = TokenDrop({
             creator: msg.sender,
@@ -72,7 +84,7 @@ contract Airdrop is AccessControl, Ownable {
             claimed: 0,
             cancelled: false
         });
-        reservedBalance = reservedTotal;
+        // reservedBalance = reservedTotal;
 
         emit TokenDropCreated(dropName, msg.sender, root, total);
     }
@@ -120,9 +132,7 @@ contract Airdrop is AccessControl, Ownable {
         emit TokenClaimed(dropName, recipient, amount);
     }
 
-    function withdrawTokens(
-        uint256 amount
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function withdrawTokens(uint256 amount) external onlyRole(ADMIN_ROLE) {
         require(amount > 0, "Invalid amount");
         require(
             _getTokenBalance() - reservedBalance >= amount,

@@ -3,7 +3,8 @@ pragma solidity ^0.8.21;
 
 import {Script, console} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
-import {OkTokenVault} from "../src/OkTokenVault.sol";
+// import {OkTokenVault} from "../src/OkTokenVault.sol";
+import {OKToken} from "../src/OKToken.sol";
 import {Airdrop} from "../src/Airdrop.sol";
 import {TestUSDT} from "../src/test_utils/TestUSDT.sol";
 
@@ -16,10 +17,13 @@ interface IERC20 {
     function transferFrom(address from, address to, uint256 value) external;
 }
 
-contract OkTokenScript is Script {
+contract OkTokenDevScript is Script {
     address vaultAddress;
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
     TestUSDT asset;
+    // 0xa8A8554B65622Dc9384B5743B966f1e5Cbf3749A usdt
+    // 0xA8ba682d73a5F3DDE0CeB6A61D59bCaB18054Eb8 okt
+    // 0x1518476E502B459f792C31Cded3DF3445052Fb18 airdrop
 
     // function setUp() public {
     //     VmSafe.Wallet memory wallet = vm.createWallet(deployerPrivateKey);
@@ -29,15 +33,17 @@ contract OkTokenScript is Script {
     //     // console.log("balance ", balance);
     // }
 
-    function run() public returns (OkTokenVault token) {
+    function run() public returns (OKToken token) {
         vm.startBroadcast(deployerPrivateKey);
         asset = new TestUSDT();
         VmSafe.Wallet memory wallet = vm.createWallet(deployerPrivateKey);
         uint64 nonce = vm.getNonce(wallet.addr);
         vaultAddress = vm.computeCreateAddress(wallet.addr, nonce + 1);
         asset.approve(vaultAddress, 1 * 1e6);
-        token = new OkTokenVault(address(asset), feeRecipient);
+        // token = new OkTokenVault(address(asset), feeRecipient);
+        token = new OKToken(address(asset), 6, feeRecipient);
         Airdrop _airdrop = new Airdrop(address(asset), feeRecipient);
         vm.stopBroadcast();
+        return token;
     }
 }
