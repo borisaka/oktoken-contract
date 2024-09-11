@@ -8,8 +8,10 @@ import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.so
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC4626Fees} from "./ERC4626Fees.sol";
+import "forge-std/console.sol";
 
 error MinimumDeposit(uint256 deposit, uint256 minDeposit);
+error MaximumDeposit(uint256 deposit, uint256 maxDeposit);
 error MinimumMint(uint256 mint, uint256 minMint);
 error MinimumWithdraw(uint256 withdraw, uint256 minWithdraw);
 error MinimumRedeem(uint256 redeem, uint256 minRedeem);
@@ -19,6 +21,13 @@ error ERC5143WithdrawSlippageProtection(uint256 shares, uint256 maxShares);
 error ERC5143RedeemSlippageProtection(uint256 assets, uint256 minAssets);
 
 contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
+    struct Position {
+        uint256 startWithAssets;
+        uint256 shares;
+    }
+
+    // mapping
+
     using Math for uint256;
     using SafeERC20 for IERC20;
 
@@ -28,7 +37,10 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
 
     event ExchangeRateUpdated(uint256 rate, uint256 timestamp);
 
-    constructor(address assetAddress, address feeRecipient)
+    constructor(
+        address assetAddress,
+        address feeRecipient
+    )
         ERC20("OkToken", "OKT")
         ERC4626(IERC20(assetAddress))
         ERC4626Fees(feeRecipient)
@@ -39,17 +51,28 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
         _mint(address(this), inititalDeposit * 1e18);
         // transfer 1 USDT from msg.sender to contract address
         // ensure msg.sender has enough USDT and approved this contract to spend 1 USDT
-        IERC20(assetAddress).safeTransferFrom(msg.sender, address(this), inititalDeposit * 1e6);
+        IERC20(assetAddress).safeTransferFrom(
+            msg.sender,
+            address(this),
+            inititalDeposit * 1e6
+        );
     }
 
-    function previewDeposit(uint256 assets) public view override(ERC4626Fees, ERC4626) returns (uint256 shares) {
+    function previewDeposit(
+        uint256 assets
+    ) public view override(ERC4626Fees, ERC4626) returns (uint256 shares) {
         if (assets < MINIMUM_DEPOSIT) {
             revert MinimumDeposit(assets, MINIMUM_DEPOSIT);
+        }
+        if (assets > maxDeposit()) {
+            revert MaximumDeposit(assets, maxDeposit());
         }
         return super.previewDeposit(assets);
     }
 
-    function previewMint(uint256 shares) public view override(ERC4626Fees, ERC4626) returns (uint256 assets) {
+    function previewMint(
+        uint256 shares
+    ) public view override(ERC4626) returns (uint256 assets) {
         assets = super.previewMint(shares);
         if (assets < minDeposit()) {
             revert MinimumMint(shares, minMint());
@@ -57,14 +80,18 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
         return assets;
     }
 
-    function previewWithdraw(uint256 assets) public view override(ERC4626Fees, ERC4626) returns (uint256 shares) {
+    function previewWithdraw(
+        uint256 assets
+    ) public view override(ERC4626Fees, ERC4626) returns (uint256 shares) {
         if (assets < minWithdraw()) {
             revert MinimumWithdraw(assets, minWithdraw());
         }
         return super.previewWithdraw(assets);
     }
 
-    function previewRedeem(uint256 shares) public view override(ERC4626Fees, ERC4626) returns (uint256 assets) {
+    function previewRedeem(
+        uint256 shares
+    ) public view override(ERC4626Fees, ERC4626) returns (uint256 assets) {
         assets = super.previewRedeem(shares);
         if (assets < MINIMUM_WITHDRAW) {
             revert MinimumRedeem(shares, minRedeem());
@@ -72,11 +99,15 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
         return assets;
     }
 
-    function maxWithdraw(address owner) public view override(ERC4626Fees, ERC4626) returns (uint256) {
+    function maxWithdraw(
+        address owner
+    ) public view override(ERC4626Fees, ERC4626) returns (uint256) {
         return super.maxWithdraw(owner);
     }
 
-    function maxRedeem(address owner) public view override(ERC4626Fees, ERC4626) returns (uint256) {
+    function maxRedeem(
+        address owner
+    ) public view override(ERC4626Fees, ERC4626) returns (uint256) {
         return super.maxRedeem(owner);
     }
 
@@ -88,6 +119,14 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
         return MINIMUM_DEPOSIT;
     }
 
+    function maxDeposit() public view returns (uint256) {
+        uint256 min = minDeposit();
+        if (totalAssets() <= min) {
+            return min;
+        }
+        return totalAssets();
+    }
+
     function minRedeem() public view returns (uint256) {
         return previewWithdraw(MINIMUM_WITHDRAW);
     }
@@ -96,7 +135,11 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
         return previewDeposit(MINIMUM_DEPOSIT);
     }
 
-    function deposit(uint256 assets, address receiver, uint256 minShares) public virtual returns (uint256) {
+    function deposit(
+        uint256 assets,
+        address receiver,
+        uint256 minShares
+    ) public virtual returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
         if (shares < minShares) {
             revert ERC5143DepositSlippageProtection(shares, minShares);
@@ -104,7 +147,11 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
         return shares;
     }
 
-    function mint(uint256 shares, address receiver, uint256 maxAssets) public virtual returns (uint256) {
+    function mint(
+        uint256 shares,
+        address receiver,
+        uint256 maxAssets
+    ) public virtual returns (uint256) {
         uint256 assets = super.mint(shares, receiver);
         if (assets > maxAssets) {
             revert ERC5143MintSlippageProtection(assets, maxAssets);
@@ -112,11 +159,12 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
         return assets;
     }
 
-    function withdraw(uint256 assets, address receiver, address owner, uint256 maxShares)
-        public
-        virtual
-        returns (uint256)
-    {
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner,
+        uint256 maxShares
+    ) public virtual returns (uint256) {
         uint256 shares = super.withdraw(assets, receiver, owner);
         if (shares > maxShares) {
             revert ERC5143WithdrawSlippageProtection(shares, maxShares);
@@ -124,11 +172,12 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
         return shares;
     }
 
-    function redeem(uint256 shares, address receiver, address owner, uint256 minAssets)
-        public
-        virtual
-        returns (uint256)
-    {
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner,
+        uint256 minAssets
+    ) public virtual returns (uint256) {
         uint256 assets = super.redeem(shares, receiver, owner);
         if (assets < minAssets) {
             revert ERC5143RedeemSlippageProtection(assets, minAssets);
@@ -188,25 +237,37 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
 
     function exchangeRate() public view returns (uint256 rate) {
         return convertToAssets(1 ether);
+        // uint256 totalSupply = totalSupply();
+        // if (totalSupply > 1 ether) {
+        //     totalSupply -= 1 ether;
+        // }
+        // return totalAssets().mulDiv(10 ** _decimalsOffset(), totalSupply) * 1e6;
     }
 
-    function _deposit(address caller, address receiver, uint256 assets, uint256 shares)
-        internal
-        override(ERC4626Fees, ERC4626)
-    {
+    function _deposit(
+        address caller,
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal override(ERC4626Fees, ERC4626) {
         super._deposit(caller, receiver, assets, shares);
         emit ExchangeRateUpdated(exchangeRate(), block.timestamp);
     }
 
-    function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 shares)
-        internal
-        override(ERC4626Fees, ERC4626)
-    {
+    function _withdraw(
+        address caller,
+        address receiver,
+        address owner,
+        uint256 assets,
+        uint256 shares
+    ) internal override(ERC4626Fees, ERC4626) {
         super._withdraw(caller, receiver, owner, assets, shares);
         emit ExchangeRateUpdated(exchangeRate(), block.timestamp);
     }
 
-    function maxDeposit(address) public pure override(ERC4626) returns (uint256) {
+    function maxDeposit(
+        address
+    ) public pure override(ERC4626) returns (uint256) {
         return type(uint128).max;
     }
 
@@ -214,11 +275,65 @@ contract OkTokenVault is ERC20, ERC4626, ERC4626Fees, ERC20Permit {
         return type(uint128).max;
     }
 
-    function decimals() public view virtual override(ERC20, ERC4626) returns (uint8) {
+    function decimals()
+        public
+        view
+        virtual
+        override(ERC20, ERC4626)
+        returns (uint8)
+    {
         return super.decimals();
     }
 
-    function _decimalsOffset() internal view virtual override(ERC4626) returns (uint8) {
+    function _decimalsOffset()
+        internal
+        view
+        virtual
+        override(ERC4626)
+        returns (uint8)
+    {
         return _OFFSET;
+    }
+
+    function _convertToShares(
+        uint256 assets,
+        Math.Rounding rounding
+    ) internal view override returns (uint256) {
+        // return assets.mulDiv(10 ** _decimalsOffset(), exchangeRate(), rounding);
+        uint256 totalSupply = totalSupply();
+        if (totalSupply > 1 ether) {
+            totalSupply -= 1 ether;
+        }
+        return
+            assets.mulDiv(
+                totalSupply + 10 ** _decimalsOffset(),
+                totalAssets() + 1,
+                rounding
+            );
+    }
+
+    /**
+     * @dev Internal conversion function (from shares to assets) with support for rounding direction.
+     */
+    function _convertToAssets(
+        uint256 shares,
+        Math.Rounding rounding
+    ) internal view override returns (uint256) {
+        //     return shares.mulDiv(exchangeRate(), 10 ** _decimalsOffset(), rounding);
+        // (bool success, uint256 val) = shares.tryMul(exchangeRate());
+        // return val;
+        // if (!result) {
+        // rev
+        // }
+        uint256 totalSupply = totalSupply();
+        if (totalSupply > 1 ether) {
+            totalSupply -= 1 ether;
+        }
+        return
+            shares.mulDiv(
+                totalAssets() + 1,
+                totalSupply + 10 ** _decimalsOffset(),
+                rounding
+            );
     }
 }
