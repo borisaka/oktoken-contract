@@ -6,10 +6,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {console} from "forge-std/Script.sol";
-
-// TODO: Migration to other version with whole liquidity
-// TODO: Test fees
 contract OKToken is ERC20 {
     using Math for uint256;
     using SafeERC20 for IERC20;
@@ -20,6 +16,10 @@ contract OKToken is ERC20 {
 
     uint256 private constant _MIN_DEPOSIT = 10e6; // 10 USDT
     uint256 private constant _MAX_DEPOSIT = 200_000e6; // 200k USDT
+    uint256 private constant _LIQUIDATION_POINT = 145; //145% of deposit amount
+
+    uint256 private constant _feePercents = 11; // 11.00 % fee, business requirement.
+    uint256 private constant _profitPercents = 1; // 1.00 % profit, business requirement.
 
     struct OKDeposit {
         uint256 startWithAssets;
@@ -43,9 +43,6 @@ contract OKToken is ERC20 {
     );
 
     event ExchangeRateUpdated(uint256 rate, uint256 timestamp);
-
-    uint256 private constant _feePercents = 11; // 11.00 % fee, business requirement.
-    uint256 private constant _profitPercents = 1; // 1.00 % profit, business requirement.
 
     address private immutable _assetAddress;
     uint8 private immutable _assetDecimals;
@@ -152,7 +149,6 @@ contract OKToken is ERC20 {
         return _deposits[id];
     }
 
-    // TODO: max and min deposit
     function previewDeposit(uint256 assets) external view returns (uint256) {
         uint256 fee = _calculateFee(assets);
         return this.convertToShares(assets - fee);
@@ -184,13 +180,11 @@ contract OKToken is ERC20 {
             address(this),
             assets
         );
-        // console.log("TRANSFERED");
         // Transfer assets to contract owner
         IERC20(_assetAddress).safeTransfer(_feeRecipient, ownerFee);
         // Increment total assets managed by contract
         _totalAssets += assets - ownerFee;
         // SafeERC20.safeTransferFrom(_asset, caller, address(this), assets);
-        // this.transferFro
         _mint(msg.sender, shares);
         bytes32 id = _openDeposit(msg.sender, assets, shares);
         emit Deposit(id, msg.sender, assets, shares);
@@ -200,7 +194,6 @@ contract OKToken is ERC20 {
 
     function previewWithdraw(bytes32 id) external view returns (uint256) {
         OKDeposit storage _deposit = _deposits[id];
-        console.log("Deposit: %s", _deposit.shares);
         require(_deposit.status == _ORDER_STATUS_PENDING, "DEPOSIT_CLOSED");
         // uint256 fee = _calculateFee(deposit.startWithAssets);
         uint256 _assets = convertToAssets(_deposit.shares);
@@ -209,12 +202,29 @@ contract OKToken is ERC20 {
     }
 
     function withdraw(bytes32 id) external returns (uint256 assets) {
+        require(_deposits[id].owner == msg.sender, "NOT_OWNER");
         return _withdraw(id, _ORDER_STATUS_CLOSED);
+    }
+
+    function liquidate(bytes32 id) external returns (uint256) {
+        OKDeposit storage _deposit = _deposits[id];
+        require(_deposit.status == _ORDER_STATUS_PENDING, "DEPOSIT_CLOSED");
+        uint256 amount = convertToAssets(_deposit.shares);
+        uint256 amountWithFee = amount - _calculateFee(amount);
+        require(
+            amountWithFee >=
+                _deposit.startWithAssets.mulDiv(_LIQUIDATION_POINT, 100),
+            "NOT_LIQUIDABLE"
+        );
+        return _withdraw(id, _ORDER_STATUS_LIQUIDATED);
+    }
+
+    function _calculateFee(uint256 assets) private pure returns (uint256) {
+        return assets.mulDiv(_feePercents, 100);
     }
 
     function _withdraw(bytes32 id, uint8 status) private returns (uint256) {
         OKDeposit storage _deposit = _deposits[id];
-        require(_deposit.owner == msg.sender, "NOT_OWNER");
         require(_deposit.status == _ORDER_STATUS_PENDING, "DEPOSIT_CLOSED");
         _deposit.status = status;
         uint256 amount = convertToAssets(_deposit.shares);
@@ -234,10 +244,6 @@ contract OKToken is ERC20 {
         );
         emit ExchangeRateUpdated(this.exchangeRate(), block.timestamp);
         return returnAssets;
-    }
-
-    function _calculateFee(uint256 assets) private pure returns (uint256) {
-        return assets.mulDiv(_feePercents, 100);
     }
 
     function _openDeposit(
