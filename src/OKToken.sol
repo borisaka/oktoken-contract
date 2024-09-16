@@ -206,6 +206,21 @@ contract OKToken is ERC20 {
         return _withdraw(id, _ORDER_STATUS_CLOSED);
     }
 
+    function canLiquidate(bytes32 id) external view returns (bool) {
+        // Check if deposit is pending
+        OKDeposit storage _deposit = _deposits[id];
+        if (_deposit.status != _ORDER_STATUS_PENDING) {
+            return false;
+        }
+        uint256 amount = convertToAssets(_deposit.shares);
+        // Calculate amount with fee
+        uint256 amountWithFee = amount - _calculateFee(amount);
+        return
+            amountWithFee >=
+            _deposit.startWithAssets.mulDiv(_LIQUIDATION_POINT, 100);
+    }
+
+    // Anyone can call liquidate if profit is above liquidation point
     function liquidate(bytes32 id) external returns (uint256) {
         OKDeposit storage _deposit = _deposits[id];
         require(_deposit.status == _ORDER_STATUS_PENDING, "DEPOSIT_CLOSED");
