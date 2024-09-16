@@ -187,6 +187,27 @@ contract OKTokenTest is Test {
         vm.stopPrank();
     }
 
+    function testCanLiquidate() public {
+        asset.transfer(alice, 10 * 1e6);
+        vm.startPrank(alice);
+        asset.approve(address(okToken), 2 ** 256 - 1);
+        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6);
+        vm.stopPrank();
+        // Testing forbid liquidation
+        vm.prank(bob);
+        asset.approve(address(okToken), 2 ** 256 - 1);
+        while (okToken.previewWithdraw(depositId) < 145e5) {
+            // vm.expectRevert("NOT_LIQUIDABLE");
+            assertEq(okToken.canLiquidate(depositId), false);
+            uint256 amount = okToken.maxDeposit();
+            asset.transfer(bob, amount);
+            vm.prank(bob);
+            okToken.deposit(amount);
+        }
+        vm.prank(bob);
+        assertEq(okToken.canLiquidate(depositId), true);
+    }
+
     function testLiquidate() public {
         asset.transfer(alice, 10 * 1e6);
         vm.startPrank(alice);
