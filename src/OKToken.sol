@@ -32,7 +32,8 @@ contract OKToken is ERC20 {
         bytes32 id,
         address indexed owner,
         uint256 assets,
-        uint256 shares
+        uint256 shares,
+        uint256 maxAssets
     );
     event Withdraw(
         bytes32 id,
@@ -187,7 +188,9 @@ contract OKToken is ERC20 {
         // SafeERC20.safeTransferFrom(_asset, caller, address(this), assets);
         _mint(msg.sender, shares);
         bytes32 id = _openDeposit(msg.sender, assets, shares);
-        emit Deposit(id, msg.sender, assets, shares);
+        // Calculate when deposit should be liquidated
+        uint256 maxAssets = shares.mulDiv(_LIQUIDATION_POINT, 100);
+        emit Deposit(id, msg.sender, assets, shares, maxAssets);
         emit ExchangeRateUpdated(this.exchangeRate(), block.timestamp);
         return (shares, id);
     }
