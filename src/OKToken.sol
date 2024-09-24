@@ -5,6 +5,7 @@ import {IERC20, IERC20Metadata, ERC20} from "@openzeppelin/contracts/token/ERC20
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {console} from "forge-std/Script.sol";
 
 contract OKToken is ERC20 {
     using Math for uint256;
@@ -158,14 +159,18 @@ contract OKToken is ERC20 {
     // revert if shares less than minShares
     function deposit(
         uint256 assets,
+        address to,
         uint256 minShares
     ) external returns (uint256, bytes32) {
         uint256 shares = this.convertToShares(assets);
         require(shares >= minShares, "MIN_SHARES");
-        return this.deposit(assets);
+        return this.deposit(assets, to);
     }
 
-    function deposit(uint256 assets) external returns (uint256, bytes32) {
+    function deposit(
+        uint256 assets,
+        address to
+    ) external returns (uint256, bytes32) {
         // Validate deposit amount
         require(assets >= _MIN_DEPOSIT, "MIN_DEPOSIT");
         require(assets <= this.maxDeposit(), "MAX_DEPOSIT");
@@ -186,11 +191,11 @@ contract OKToken is ERC20 {
         // Increment total assets managed by contract
         _totalAssets += assets - ownerFee;
         // SafeERC20.safeTransferFrom(_asset, caller, address(this), assets);
-        _mint(msg.sender, shares);
-        bytes32 id = _openDeposit(msg.sender, assets, shares);
+        _mint(to, shares);
+        bytes32 id = _openDeposit(to, assets, shares);
         // Calculate when deposit should be liquidated
         uint256 maxAssets = shares.mulDiv(_LIQUIDATION_POINT, 100);
-        emit Deposit(id, msg.sender, assets, shares, maxAssets);
+        emit Deposit(id, to, assets, shares, maxAssets);
         emit ExchangeRateUpdated(this.exchangeRate(), block.timestamp);
         return (shares, id);
     }
@@ -251,6 +256,7 @@ contract OKToken is ERC20 {
         IERC20(_assetAddress).safeTransfer(_deposit.owner, returnAssets);
         IERC20(_assetAddress).safeTransfer(_feeRecipient, ownerFee);
         _burn(_deposit.owner, _deposit.shares);
+        console.log("burn");
         _totalAssets -= (returnAssets + ownerFee);
 
         emit Withdraw(
