@@ -17,7 +17,7 @@ contract OKToken is ERC20 {
 
     uint256 private constant _MIN_DEPOSIT = 10e6; // 10 USDT
     uint256 private constant _MAX_DEPOSIT = 200_000e6; // 200k USDT
-    uint256 private constant _LIQUIDATION_POINT = 145; //145% of deposit amount
+    // uint256 private constant _LIQUIDATION_POINT = 145; //145% of deposit amount
 
     uint256 private constant _feePercents = 11; // 11.00 % fee, business requirement.
     uint256 private constant _profitPercents = 1; // 1.00 % profit, business requirement.
@@ -54,6 +54,7 @@ contract OKToken is ERC20 {
 
     // Only asset known as deposit will influence of course and whole contract economy
     uint256 private _totalAssets = 0;
+    uint8 private _liquidationPoint = 145;
 
     mapping(bytes32 => OKDeposit) private _deposits;
 
@@ -105,6 +106,19 @@ contract OKToken is ERC20 {
 
     function exchangeRate() public view returns (uint256 rate) {
         return convertToAssets(1 ether);
+    }
+
+    function liquidationPoint() external view returns (uint256) {
+        return _liquidationPoint;
+    }
+
+    function setLiquidationPoint(uint8 newLiquidationPoint) external {
+        require(msg.sender == _feeRecipient, "NOT_AUTHORIZED");
+        require(
+            newLiquidationPoint >= 110 && newLiquidationPoint <= 200,
+            "OUT_OF_RANGE"
+        );
+        _liquidationPoint = newLiquidationPoint;
     }
 
     function convertToShares(
@@ -194,7 +208,7 @@ contract OKToken is ERC20 {
         _mint(to, shares);
         bytes32 id = _openDeposit(to, assets, shares);
         // Calculate when deposit should be liquidated
-        uint256 maxAssets = shares.mulDiv(_LIQUIDATION_POINT, 100);
+        uint256 maxAssets = shares.mulDiv(_liquidationPoint, 100);
         emit Deposit(id, to, assets, shares, maxAssets);
         emit ExchangeRateUpdated(this.exchangeRate(), block.timestamp);
         return (shares, id);
@@ -225,7 +239,7 @@ contract OKToken is ERC20 {
         uint256 amountWithFee = amount - _calculateFee(amount);
         return
             amountWithFee >=
-            _deposit.startWithAssets.mulDiv(_LIQUIDATION_POINT, 100);
+            _deposit.startWithAssets.mulDiv(_liquidationPoint, 100);
     }
 
     // Anyone can call liquidate if profit is above liquidation point
@@ -236,7 +250,7 @@ contract OKToken is ERC20 {
         uint256 amountWithFee = amount - _calculateFee(amount);
         require(
             amountWithFee >=
-                _deposit.startWithAssets.mulDiv(_LIQUIDATION_POINT, 100),
+                _deposit.startWithAssets.mulDiv(_liquidationPoint, 100),
             "NOT_LIQUIDABLE"
         );
         return _withdraw(id, _ORDER_STATUS_LIQUIDATED);

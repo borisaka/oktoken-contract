@@ -231,7 +231,9 @@ contract OKTokenTest is Test {
         // Testing forbid liquidation
         vm.prank(bob);
         asset.approve(address(okToken), 2 ** 256 - 1);
-        while (okToken.previewWithdraw(depositId) < 145e5) {
+        vm.prank(creator);
+        okToken.setLiquidationPoint(185);
+        while (okToken.previewWithdraw(depositId) < 185e5) {
             vm.expectRevert("NOT_LIQUIDABLE");
             okToken.liquidate(depositId);
             uint256 amount = okToken.maxDeposit();
@@ -241,8 +243,22 @@ contract OKTokenTest is Test {
         }
         vm.prank(bob);
         okToken.liquidate(depositId);
-        assertEq(14653679, asset.balanceOf(alice));
+        assertEq(18962825, asset.balanceOf(alice));
         vm.expectRevert("DEPOSIT_CLOSED");
         okToken.liquidate(depositId);
+    }
+
+    function testSetLiquidationPoint() public {
+        vm.startPrank(creator);
+        okToken.setLiquidationPoint(185);
+        assertEq(okToken.liquidationPoint(), 185);
+        vm.stopPrank();
+    }
+
+    function testForbidSetLiquidationPoint() public {
+        vm.startPrank(bob);
+        vm.expectRevert("NOT_AUTHORIZED");
+        okToken.setLiquidationPoint(185);
+        vm.stopPrank();
     }
 }
