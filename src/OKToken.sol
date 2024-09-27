@@ -5,7 +5,6 @@ import {IERC20, IERC20Metadata, ERC20} from "@openzeppelin/contracts/token/ERC20
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {console} from "forge-std/Script.sol";
 
 contract OKToken is ERC20 {
     using Math for uint256;
@@ -25,6 +24,7 @@ contract OKToken is ERC20 {
     struct OKDeposit {
         uint256 startWithAssets;
         uint256 shares;
+        uint256 maxAssets;
         uint8 status;
         address owner;
     }
@@ -54,7 +54,7 @@ contract OKToken is ERC20 {
 
     // Only asset known as deposit will influence of course and whole contract economy
     uint256 private _totalAssets = 0;
-    uint8 private _liquidationPoint = 145;
+    uint8 private _liquidationPoint = 120;
 
     mapping(bytes32 => OKDeposit) private _deposits;
 
@@ -206,9 +206,9 @@ contract OKToken is ERC20 {
         _totalAssets += assets - ownerFee;
         // SafeERC20.safeTransferFrom(_asset, caller, address(this), assets);
         _mint(to, shares);
-        bytes32 id = _openDeposit(to, assets, shares);
         // Calculate when deposit should be liquidated
-        uint256 maxAssets = shares.mulDiv(_liquidationPoint, 100);
+        uint256 maxAssets = assets.mulDiv(_liquidationPoint, 100);
+        bytes32 id = _openDeposit(to, assets, shares, maxAssets);
         emit Deposit(id, to, assets, shares, maxAssets);
         emit ExchangeRateUpdated(this.exchangeRate(), block.timestamp);
         return (shares, id);
@@ -237,22 +237,16 @@ contract OKToken is ERC20 {
         uint256 amount = convertToAssets(_deposit.shares);
         // Calculate amount with fee
         uint256 amountWithFee = amount - _calculateFee(amount);
-        return
-            amountWithFee >=
-            _deposit.startWithAssets.mulDiv(_liquidationPoint, 100);
+        return amountWithFee >= _deposit.maxAssets;
     }
 
     // Anyone can call liquidate if profit is above liquidation point
     function liquidate(bytes32 id) external returns (uint256) {
         OKDeposit storage _deposit = _deposits[id];
         require(_deposit.status == _ORDER_STATUS_PENDING, "DEPOSIT_CLOSED");
-        uint256 amount = convertToAssets(_deposit.shares);
-        uint256 amountWithFee = amount - _calculateFee(amount);
-        require(
-            amountWithFee >=
-                _deposit.startWithAssets.mulDiv(_liquidationPoint, 100),
-            "NOT_LIQUIDABLE"
-        );
+        // uint256 amount = convertToAssets(_deposit.shares);
+        // uint256 amountWithFee = amount - _calculateFee(amount);
+        require(this.canLiquidate(id), "NOT_LIQUIDABLE");
         return _withdraw(id, _ORDER_STATUS_LIQUIDATED);
     }
 
@@ -270,7 +264,6 @@ contract OKToken is ERC20 {
         IERC20(_assetAddress).safeTransfer(_deposit.owner, returnAssets);
         IERC20(_assetAddress).safeTransfer(_feeRecipient, ownerFee);
         _burn(_deposit.owner, _deposit.shares);
-        console.log("burn");
         _totalAssets -= (returnAssets + ownerFee);
 
         emit Withdraw(
@@ -287,21 +280,24 @@ contract OKToken is ERC20 {
     function _openDeposit(
         address owner,
         uint256 startWithAssets,
-        uint256 shares
+        uint256 shares,
+        uint256 maxAssets
     ) private returns (bytes32) {
         bytes32 id = keccak256(
             abi.encodePacked(
                 msg.sender,
                 block.timestamp,
                 startWithAssets,
-                shares
+                shares,
+                maxAssets
             )
         );
         _deposits[id] = OKDeposit({
             owner: owner,
             startWithAssets: startWithAssets,
             shares: shares,
-            status: _ORDER_STATUS_PENDING
+            status: _ORDER_STATUS_PENDING,
+            maxAssets: maxAssets
         });
         return id;
     }

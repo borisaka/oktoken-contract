@@ -210,7 +210,7 @@ contract OKTokenTest is Test {
         // Testing forbid liquidation
         vm.prank(bob);
         asset.approve(address(okToken), 2 ** 256 - 1);
-        while (okToken.previewWithdraw(depositId) < 145e5) {
+        while (okToken.previewWithdraw(depositId) < 120e5) {
             // vm.expectRevert("NOT_LIQUIDABLE");
             assertEq(okToken.canLiquidate(depositId), false);
             uint256 amount = okToken.maxDeposit();
@@ -219,6 +219,7 @@ contract OKTokenTest is Test {
             okToken.deposit(amount, alice);
         }
         vm.prank(bob);
+        console.log("FINAL");
         assertEq(okToken.canLiquidate(depositId), true);
     }
 
@@ -233,7 +234,17 @@ contract OKTokenTest is Test {
         asset.approve(address(okToken), 2 ** 256 - 1);
         vm.prank(creator);
         okToken.setLiquidationPoint(185);
-        while (okToken.previewWithdraw(depositId) < 185e5) {
+        asset.transfer(alice, 10 * 1e6);
+        vm.startPrank(alice);
+        // asset.approve(address(okToken), 2 ** 256 - 1);
+        console.log("dep 2");
+        (uint256 shares2, bytes32 depositId2) = okToken.deposit(
+            10 * 1e6,
+            alice
+        );
+        vm.stopPrank();
+        console.log("LIQ DEP 1");
+        while (okToken.previewWithdraw(depositId) < 120e5) {
             vm.expectRevert("NOT_LIQUIDABLE");
             okToken.liquidate(depositId);
             uint256 amount = okToken.maxDeposit();
@@ -241,9 +252,18 @@ contract OKTokenTest is Test {
             vm.prank(bob);
             okToken.deposit(amount, alice);
         }
-        vm.prank(bob);
         okToken.liquidate(depositId);
-        assertEq(18962825, asset.balanceOf(alice));
+        while (okToken.previewWithdraw(depositId2) < 185e5) {
+            vm.expectRevert("NOT_LIQUIDABLE");
+            okToken.liquidate(depositId2);
+            uint256 amount = okToken.maxDeposit();
+            asset.transfer(bob, amount);
+            vm.prank(bob);
+            okToken.deposit(amount, alice);
+        }
+        vm.prank(bob);
+
+        assertEq(12525058, asset.balanceOf(alice));
         vm.expectRevert("DEPOSIT_CLOSED");
         okToken.liquidate(depositId);
     }
