@@ -1,22 +1,25 @@
-# Project Name: OkToken
-## Description
+## Mnemonic
+observe connect scene gadget draft waste ribbon thank volcano safe alert ask
 
-This ERC-4626 token implementation features unique deposit and withdrawal fee mechanisms, with OpenZeppelin libraries ensuring standard functionalities for security and efficiency. The contract employs advanced features like EIP712 for structured data signing and ERC20Permit for gasless transactions.
+## Addresses
+### Contracts
+**Test USDT**:
+0x5d1973662221E0De8E871A34f3986AcB367c20C5
+[etherscan.io](https://sepolia.etherscan.io/address/0x5d1973662221E0De8E871A34f3986AcB367c20C5)
 
-## Key Features
+**OKToken**:
+0x93150e332e2451b1676C23ED3B67Da07FFfd88B1
+[etherscan.io](https://sepolia.etherscan.io/address/0x93150e332e2451b1676C23ED3B67Da07FFfd88B1)
 
-- **ERC-4626 Standard**: Tokenized vaults standard with interest-bearing capability.
-- **OpenZeppelin Libraries**: Ensures robust and secure contract functionalities.
-- **ERC20Permit Extension**: Gasless transactions via off-chain signatures.
-- **EIP712 Implementation**: Secure and user-friendly structured data signing.
-- **Fee Mechanism**: Fees on deposits and withdrawals with 70% retention in the contract. 30% of the fees transferred to the owner.
-- **Advanced Math Operations**: Custom libraries for extended mathematical capabilities.
+**Airdrop**:
+0xb2Df624AC1F398B8A3C4493f9aA2FAa749E62Bdc
+[etherscan.io](https://sepolia.etherscan.io/address/0xb2Df624AC1F398B8A3C4493f9aA2FAa749E62Bdc)
 
-## Technologies
+### Accounts
+Account #1 - USDT and SepoliaETH holder - 0xE531252e4E83fDec4c33336fb7AF0042e4005789
 
-- Solidity, Ethereum Blockchain, Foundry.
+Account #10 (receives 1% fee) - 0x5809D78c0F1F010D2793ae484A20ABFba916D6F2
 
-## Installation and Setup
 
 ```bash
 forge install

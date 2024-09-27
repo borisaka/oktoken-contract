@@ -16,7 +16,7 @@ contract OKToken is ERC20 {
 
     uint256 private constant _MIN_DEPOSIT = 10e6; // 10 USDT
     uint256 private constant _MAX_DEPOSIT = 200_000e6; // 200k USDT
-    uint256 private constant _LIQUIDATION_POINT = 145; //145% of deposit amount
+    // uint256 private constant _LIQUIDATION_POINT = 145; //145% of deposit amount
 
     uint256 private constant _feePercents = 11; // 11.00 % fee, business requirement.
     uint256 private constant _profitPercents = 1; // 1.00 % profit, business requirement.
@@ -24,6 +24,7 @@ contract OKToken is ERC20 {
     struct OKDeposit {
         uint256 startWithAssets;
         uint256 shares;
+        uint256 maxAssets;
         uint8 status;
         address owner;
     }
@@ -32,7 +33,8 @@ contract OKToken is ERC20 {
         bytes32 id,
         address indexed owner,
         uint256 assets,
-        uint256 shares
+        uint256 shares,
+        uint256 maxAssets
     );
     event Withdraw(
         bytes32 id,
@@ -52,6 +54,7 @@ contract OKToken is ERC20 {
 
     // Only asset known as deposit will influence of course and whole contract economy
     uint256 private _totalAssets = 0;
+    uint8 private _liquidationPoint = 120;
 
     mapping(bytes32 => OKDeposit) private _deposits;
 
@@ -103,6 +106,19 @@ contract OKToken is ERC20 {
 
     function exchangeRate() public view returns (uint256 rate) {
         return convertToAssets(1 ether);
+    }
+
+    function liquidationPoint() external view returns (uint256) {
+        return _liquidationPoint;
+    }
+
+    function setLiquidationPoint(uint8 newLiquidationPoint) external {
+        require(msg.sender == _feeRecipient, "NOT_AUTHORIZED");
+        require(
+            newLiquidationPoint >= 110 && newLiquidationPoint <= 200,
+            "OUT_OF_RANGE"
+        );
+        _liquidationPoint = newLiquidationPoint;
     }
 
     function convertToShares(
@@ -157,14 +173,18 @@ contract OKToken is ERC20 {
     // revert if shares less than minShares
     function deposit(
         uint256 assets,
+        address to,
         uint256 minShares
     ) external returns (uint256, bytes32) {
         uint256 shares = this.convertToShares(assets);
         require(shares >= minShares, "MIN_SHARES");
-        return this.deposit(assets);
+        return this.deposit(assets, to);
     }
 
-    function deposit(uint256 assets) external returns (uint256, bytes32) {
+    function deposit(
+        uint256 assets,
+        address to
+    ) external returns (uint256, bytes32) {
         // Validate deposit amount
         require(assets >= _MIN_DEPOSIT, "MIN_DEPOSIT");
         require(assets <= this.maxDeposit(), "MAX_DEPOSIT");
@@ -185,9 +205,11 @@ contract OKToken is ERC20 {
         // Increment total assets managed by contract
         _totalAssets += assets - ownerFee;
         // SafeERC20.safeTransferFrom(_asset, caller, address(this), assets);
-        _mint(msg.sender, shares);
-        bytes32 id = _openDeposit(msg.sender, assets, shares);
-        emit Deposit(id, msg.sender, assets, shares);
+        _mint(to, shares);
+        // Calculate when deposit should be liquidated
+        uint256 maxAssets = assets.mulDiv(_liquidationPoint, 100);
+        bytes32 id = _openDeposit(to, assets, shares, maxAssets);
+        emit Deposit(id, to, assets, shares, maxAssets);
         emit ExchangeRateUpdated(this.exchangeRate(), block.timestamp);
         return (shares, id);
     }
@@ -215,22 +237,16 @@ contract OKToken is ERC20 {
         uint256 amount = convertToAssets(_deposit.shares);
         // Calculate amount with fee
         uint256 amountWithFee = amount - _calculateFee(amount);
-        return
-            amountWithFee >=
-            _deposit.startWithAssets.mulDiv(_LIQUIDATION_POINT, 100);
+        return amountWithFee >= _deposit.maxAssets;
     }
 
     // Anyone can call liquidate if profit is above liquidation point
     function liquidate(bytes32 id) external returns (uint256) {
         OKDeposit storage _deposit = _deposits[id];
         require(_deposit.status == _ORDER_STATUS_PENDING, "DEPOSIT_CLOSED");
-        uint256 amount = convertToAssets(_deposit.shares);
-        uint256 amountWithFee = amount - _calculateFee(amount);
-        require(
-            amountWithFee >=
-                _deposit.startWithAssets.mulDiv(_LIQUIDATION_POINT, 100),
-            "NOT_LIQUIDABLE"
-        );
+        // uint256 amount = convertToAssets(_deposit.shares);
+        // uint256 amountWithFee = amount - _calculateFee(amount);
+        require(this.canLiquidate(id), "NOT_LIQUIDABLE");
         return _withdraw(id, _ORDER_STATUS_LIQUIDATED);
     }
 
@@ -264,21 +280,24 @@ contract OKToken is ERC20 {
     function _openDeposit(
         address owner,
         uint256 startWithAssets,
-        uint256 shares
+        uint256 shares,
+        uint256 maxAssets
     ) private returns (bytes32) {
         bytes32 id = keccak256(
             abi.encodePacked(
                 msg.sender,
                 block.timestamp,
                 startWithAssets,
-                shares
+                shares,
+                maxAssets
             )
         );
         _deposits[id] = OKDeposit({
             owner: owner,
             startWithAssets: startWithAssets,
             shares: shares,
-            status: _ORDER_STATUS_PENDING
+            status: _ORDER_STATUS_PENDING,
+            maxAssets: maxAssets
         });
         return id;
     }

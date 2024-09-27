@@ -68,7 +68,7 @@ contract OKTokenTest is Test {
         // vm.expectEmit(true, true, false, true);
         // emit OKToken.Deposit(expectedId, alice, assets, expectedShares);
         // emit OKToken.ExchangeRateUpdated(1224719, block.timestamp);
-        (uint256 shares, bytes32 depositId) = okToken.deposit(assets);
+        (uint256 shares, bytes32 depositId) = okToken.deposit(assets, alice);
 
         vm.stopPrank();
         assertEq(shares, 8900000000000000000);
@@ -86,7 +86,7 @@ contract OKTokenTest is Test {
         vm.startPrank(alice);
         asset.approve(address(okToken), 2 ** 256 - 1);
         vm.expectRevert("MIN_DEPOSIT");
-        okToken.deposit(assets);
+        okToken.deposit(assets, alice);
         vm.stopPrank();
     }
 
@@ -97,26 +97,26 @@ contract OKTokenTest is Test {
         asset.approve(address(okToken), 2 ** 256 - 1);
         // First deposit <= 10 USDT
         vm.expectRevert("MAX_DEPOSIT");
-        okToken.deposit(11 * 1e6);
-        okToken.deposit(10 * 1e6);
+        okToken.deposit(11 * 1e6, alice);
+        okToken.deposit(10 * 1e6, alice);
         // Same with second (because totalAssets == 10 USDT)
         vm.expectRevert("MAX_DEPOSIT");
-        okToken.deposit(20 * 1e6);
+        okToken.deposit(20 * 1e6, alice);
         // Deposit 10 USDT
-        okToken.deposit(10 * 1e6);
+        okToken.deposit(10 * 1e6, alice);
         // Now we can deposit 20 USDT
-        okToken.deposit(20 * 1e6);
+        okToken.deposit(20 * 1e6, alice);
         // But still can't deposit >= 200K USDT
         vm.expectRevert("MAX_DEPOSIT");
-        okToken.deposit(200_001 * 1e6);
+        okToken.deposit(200_001 * 1e6, alice);
         // Reaching 200K USDT total assets
         while (okToken.totalAssets() <= 200_000 * 1e6) {
-            okToken.deposit(okToken.totalAssets());
+            okToken.deposit(okToken.totalAssets(), alice);
         }
         // // And we still can't deposit >= 200K USDT
-        okToken.deposit(200_000 * 1e6);
+        okToken.deposit(200_000 * 1e6, alice);
         vm.expectRevert("MAX_DEPOSIT");
-        okToken.deposit(200_001 * 1e6);
+        okToken.deposit(200_001 * 1e6, alice);
     }
 
     function testPreviewWithdraw() public {
@@ -124,8 +124,8 @@ contract OKTokenTest is Test {
         asset.transfer(alice, 20 * 1e6);
         vm.startPrank(alice);
         asset.approve(address(okToken), 2 ** 256 - 1);
-        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6);
-        okToken.deposit(10 * 1e6);
+        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6, alice);
+        okToken.deposit(10 * 1e6, alice);
         vm.stopPrank();
         uint256 withdraw = okToken.previewWithdraw(depositId);
         assertEq(withdraw, 10190949);
@@ -138,11 +138,11 @@ contract OKTokenTest is Test {
         asset.transfer(bob, 10 * 1e6);
         vm.startPrank(alice);
         asset.approve(address(okToken), 2 ** 256 - 1);
-        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6);
+        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6, alice);
         vm.stopPrank();
         vm.startPrank(bob);
         asset.approve(address(okToken), 2 ** 256 - 1);
-        okToken.deposit(10 * 1e6);
+        okToken.deposit(10 * 1e6, bob);
         vm.stopPrank();
         vm.startPrank(alice);
         // okToken.approve(address(okToken), shares);
@@ -162,7 +162,7 @@ contract OKTokenTest is Test {
         asset.transfer(alice, 10 * 1e6);
         vm.startPrank(alice);
         asset.approve(address(okToken), 2 ** 256 - 1);
-        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6);
+        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6, alice);
         vm.stopPrank();
         asset.transfer(bob, 10 * 1e6);
         vm.startPrank(bob);
@@ -172,11 +172,25 @@ contract OKTokenTest is Test {
         vm.stopPrank();
     }
 
+    // Test for different owner and msg.sender
+    function testWithdrawNewOwner() public {
+        asset.transfer(alice, 10 * 1e6);
+        asset.transfer(bob, 10 * 1e6);
+        vm.startPrank(alice);
+        asset.approve(address(okToken), 2 ** 256 - 1);
+        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6, bob);
+        console.log("deposited");
+        vm.stopPrank();
+        vm.startPrank(bob);
+        okToken.withdraw(depositId);
+        console.log("balanceOf", asset.balanceOf(bob));
+    }
+
     function testRewertWithdrawClosedDeposit() public {
         asset.transfer(alice, 10 * 1e6);
         vm.startPrank(alice);
         asset.approve(address(okToken), 2 ** 256 - 1);
-        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6);
+        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6, alice);
         vm.stopPrank();
         vm.startPrank(alice);
         okToken.withdraw(depositId);
@@ -191,20 +205,21 @@ contract OKTokenTest is Test {
         asset.transfer(alice, 10 * 1e6);
         vm.startPrank(alice);
         asset.approve(address(okToken), 2 ** 256 - 1);
-        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6);
+        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6, alice);
         vm.stopPrank();
         // Testing forbid liquidation
         vm.prank(bob);
         asset.approve(address(okToken), 2 ** 256 - 1);
-        while (okToken.previewWithdraw(depositId) < 145e5) {
+        while (okToken.previewWithdraw(depositId) < 120e5) {
             // vm.expectRevert("NOT_LIQUIDABLE");
             assertEq(okToken.canLiquidate(depositId), false);
             uint256 amount = okToken.maxDeposit();
             asset.transfer(bob, amount);
             vm.prank(bob);
-            okToken.deposit(amount);
+            okToken.deposit(amount, alice);
         }
         vm.prank(bob);
+        console.log("FINAL");
         assertEq(okToken.canLiquidate(depositId), true);
     }
 
@@ -212,23 +227,58 @@ contract OKTokenTest is Test {
         asset.transfer(alice, 10 * 1e6);
         vm.startPrank(alice);
         asset.approve(address(okToken), 2 ** 256 - 1);
-        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6);
+        (uint256 shares, bytes32 depositId) = okToken.deposit(10 * 1e6, alice);
         vm.stopPrank();
         // Testing forbid liquidation
         vm.prank(bob);
         asset.approve(address(okToken), 2 ** 256 - 1);
-        while (okToken.previewWithdraw(depositId) < 145e5) {
+        vm.prank(creator);
+        okToken.setLiquidationPoint(185);
+        asset.transfer(alice, 10 * 1e6);
+        vm.startPrank(alice);
+        // asset.approve(address(okToken), 2 ** 256 - 1);
+        console.log("dep 2");
+        (uint256 shares2, bytes32 depositId2) = okToken.deposit(
+            10 * 1e6,
+            alice
+        );
+        vm.stopPrank();
+        console.log("LIQ DEP 1");
+        while (okToken.previewWithdraw(depositId) < 120e5) {
             vm.expectRevert("NOT_LIQUIDABLE");
             okToken.liquidate(depositId);
             uint256 amount = okToken.maxDeposit();
             asset.transfer(bob, amount);
             vm.prank(bob);
-            okToken.deposit(amount);
+            okToken.deposit(amount, alice);
+        }
+        okToken.liquidate(depositId);
+        while (okToken.previewWithdraw(depositId2) < 185e5) {
+            vm.expectRevert("NOT_LIQUIDABLE");
+            okToken.liquidate(depositId2);
+            uint256 amount = okToken.maxDeposit();
+            asset.transfer(bob, amount);
+            vm.prank(bob);
+            okToken.deposit(amount, alice);
         }
         vm.prank(bob);
-        okToken.liquidate(depositId);
-        assertEq(14653679, asset.balanceOf(alice));
+
+        assertEq(12525058, asset.balanceOf(alice));
         vm.expectRevert("DEPOSIT_CLOSED");
         okToken.liquidate(depositId);
+    }
+
+    function testSetLiquidationPoint() public {
+        vm.startPrank(creator);
+        okToken.setLiquidationPoint(185);
+        assertEq(okToken.liquidationPoint(), 185);
+        vm.stopPrank();
+    }
+
+    function testForbidSetLiquidationPoint() public {
+        vm.startPrank(bob);
+        vm.expectRevert("NOT_AUTHORIZED");
+        okToken.setLiquidationPoint(185);
+        vm.stopPrank();
     }
 }
