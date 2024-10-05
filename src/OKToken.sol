@@ -20,6 +20,7 @@ contract OKToken is ERC20 {
 
     uint256 private constant _feePercents = 11; // 11.00 % fee, business requirement.
     uint256 private constant _profitPercents = 1; // 1.00 % profit, business requirement.
+    uint256 private _nextId = 0;
 
     struct OKDeposit {
         uint256 startWithAssets;
@@ -30,14 +31,14 @@ contract OKToken is ERC20 {
     }
 
     event Deposit(
-        bytes32 id,
+        uint256 id,
         address indexed owner,
         uint256 assets,
         uint256 shares,
         uint256 maxAssets
     );
     event Withdraw(
-        bytes32 id,
+        uint256 id,
         address indexed owner,
         uint256 assets,
         uint256 shares,
@@ -56,7 +57,7 @@ contract OKToken is ERC20 {
     uint256 private _totalAssets = 0;
     uint8 private _liquidationPoint = 120;
 
-    mapping(bytes32 => OKDeposit) private _deposits;
+    mapping(uint256 => OKDeposit) private _deposits;
 
     /**
      * @dev Constructor function
@@ -161,7 +162,7 @@ contract OKToken is ERC20 {
         return _totalAssets;
     }
 
-    function showDeposit(bytes32 id) external view returns (OKDeposit memory) {
+    function showDeposit(uint32 id) external view returns (OKDeposit memory) {
         return _deposits[id];
     }
 
@@ -175,7 +176,7 @@ contract OKToken is ERC20 {
         uint256 assets,
         address to,
         uint256 minShares
-    ) external returns (uint256, bytes32) {
+    ) external returns (uint256, uint256) {
         uint256 shares = this.convertToShares(assets);
         require(shares >= minShares, "MIN_SHARES");
         return this.deposit(assets, to);
@@ -184,7 +185,7 @@ contract OKToken is ERC20 {
     function deposit(
         uint256 assets,
         address to
-    ) external returns (uint256, bytes32) {
+    ) external returns (uint256, uint256) {
         // Validate deposit amount
         require(assets >= _MIN_DEPOSIT, "MIN_DEPOSIT");
         require(assets <= this.maxDeposit(), "MAX_DEPOSIT");
@@ -208,13 +209,13 @@ contract OKToken is ERC20 {
         _mint(to, shares);
         // Calculate when deposit should be liquidated
         uint256 maxAssets = assets.mulDiv(_liquidationPoint, 100);
-        bytes32 id = _openDeposit(to, assets, shares, maxAssets);
+        uint256 id = _openDeposit(to, assets, shares, maxAssets);
         emit Deposit(id, to, assets, shares, maxAssets);
         emit ExchangeRateUpdated(this.exchangeRate(), block.timestamp);
         return (shares, id);
     }
 
-    function previewWithdraw(bytes32 id) external view returns (uint256) {
+    function previewWithdraw(uint256 id) external view returns (uint256) {
         OKDeposit storage _deposit = _deposits[id];
         require(_deposit.status == _ORDER_STATUS_PENDING, "DEPOSIT_CLOSED");
         // uint256 fee = _calculateFee(deposit.startWithAssets);
@@ -223,14 +224,23 @@ contract OKToken is ERC20 {
         return _assets - fee;
     }
 
-    function withdraw(bytes32 id) external returns (uint256 assets) {
-        require(_deposits[id].owner == msg.sender, "NOT_OWNER");
-        return _withdraw(id, _ORDER_STATUS_CLOSED);
+    function withdraw(uint256 id) external returns (uint256 assets) {
+        OKDeposit storage _deposit = _deposits[id];
+        if (_deposit.maxAssets == 0) {
+            revert("DEPOSIT_NOT_FOUND");
+        }
+
+        require(_deposit.owner == msg.sender, "NOT_OWNER");
+        return _withdraw(_deposit, id, _ORDER_STATUS_CLOSED);
     }
 
-    function canLiquidate(bytes32 id) external view returns (bool) {
+    function canLiquidate(uint256 id) external view returns (bool) {
         // Check if deposit is pending
         OKDeposit storage _deposit = _deposits[id];
+        if (_deposit.maxAssets == 0) {
+            revert("DEPOSIT_NOT_FOUND");
+        }
+
         if (_deposit.status != _ORDER_STATUS_PENDING) {
             return false;
         }
@@ -241,21 +251,34 @@ contract OKToken is ERC20 {
     }
 
     // Anyone can call liquidate if profit is above liquidation point
-    function liquidate(bytes32 id) external returns (uint256) {
+    function liquidate(uint256 id) external returns (uint256) {
         OKDeposit storage _deposit = _deposits[id];
+        if (_deposit.maxAssets == 0) {
+            revert("DEPOSIT_NOT_FOUND");
+        }
         require(_deposit.status == _ORDER_STATUS_PENDING, "DEPOSIT_CLOSED");
-        // uint256 amount = convertToAssets(_deposit.shares);
-        // uint256 amountWithFee = amount - _calculateFee(amount);
-        require(this.canLiquidate(id), "NOT_LIQUIDABLE");
-        return _withdraw(id, _ORDER_STATUS_LIQUIDATED);
+        uint256 amount = convertToAssets(_deposit.shares);
+        // Calculate amount with fee
+        uint256 amountWithFee = amount - _calculateFee(amount);
+        if (amountWithFee <= _deposit.maxAssets) {
+            revert("NOT_LIQUIDABLE");
+        }
+        return _withdraw(_deposit, id, _ORDER_STATUS_LIQUIDATED);
     }
 
     function _calculateFee(uint256 assets) private pure returns (uint256) {
         return assets.mulDiv(_feePercents, 100);
     }
 
-    function _withdraw(bytes32 id, uint8 status) private returns (uint256) {
-        OKDeposit storage _deposit = _deposits[id];
+    function _withdraw(
+        OKDeposit storage _deposit,
+        uint256 id,
+        uint8 status
+    ) private returns (uint256) {
+        // OKDeposit storage _deposit = _deposits[id];
+        // if (_deposit.maxAssets == 0) {
+        //     revert("DEPOSIT_NOT_FOUND");
+        // }
         require(_deposit.status == _ORDER_STATUS_PENDING, "DEPOSIT_CLOSED");
         _deposit.status = status;
         uint256 amount = convertToAssets(_deposit.shares);
@@ -282,16 +305,8 @@ contract OKToken is ERC20 {
         uint256 startWithAssets,
         uint256 shares,
         uint256 maxAssets
-    ) private returns (bytes32) {
-        bytes32 id = keccak256(
-            abi.encodePacked(
-                msg.sender,
-                block.timestamp,
-                startWithAssets,
-                shares,
-                maxAssets
-            )
-        );
+    ) private returns (uint256) {
+        uint256 id = _nextId++;
         _deposits[id] = OKDeposit({
             owner: owner,
             startWithAssets: startWithAssets,
@@ -302,7 +317,7 @@ contract OKToken is ERC20 {
         return id;
     }
 
-    function _closeDeposit(bytes32 id, uint8 newStatus) private {
+    function _closeDeposit(uint256 id, uint8 newStatus) private {
         _deposits[id].status = newStatus;
     }
 }
