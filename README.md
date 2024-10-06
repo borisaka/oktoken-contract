@@ -8,8 +8,8 @@ observe connect scene gadget draft waste ribbon thank volcano safe alert ask
 [etherscan.io](https://sepolia.etherscan.io/address/0x5d1973662221E0De8E871A34f3986AcB367c20C5)
 
 **OKToken**:
-0x0A9f82D98e6315724D2503d4C4e5ff0d7640669d
-[etherscan.io](https://sepolia.etherscan.io/address/0x0A9f82D98e6315724D2503d4C4e5ff0d7640669d)
+0x344d7486Ffa4a9D5D6FDE65D4EBfBDe804664995
+[etherscan.io](https://sepolia.etherscan.io/address/0x344d7486Ffa4a9D5D6FDE65D4EBfBDe804664995)
 
 **Airdrop**:
 0xb2Df624AC1F398B8A3C4493f9aA2FAa749E62Bdc

@@ -4,9 +4,12 @@ pragma solidity ^0.8.21;
 import {Script, console} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 import {OkTokenVault} from "../src/OkTokenVault.sol";
-
+// Mainnet
 address constant feeRecipient = 0x6e6Ea664E482b32019c4d45B639C12E643C3B3b5;
 address constant assetAddress = 0x0fba5f964d91A9DE6237011bDd55aeDd575b3502;
+// SEPOLIA
+// address constant feeRecipient = 0x6e6Ea664E482b32019c4d45B639C12E643C3B3b5;
+// address constant assetAddress = 0x5809D78c0F1F010D2793ae484A20ABFba916D6F2;
 
 interface IERC20 {
     function balanceOf(address _owner) external view returns (uint256 balance);

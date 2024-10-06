@@ -9,7 +9,7 @@ import {Airdrop} from "../src/Airdrop.sol";
 import {TestUSDT} from "../src/test_utils/TestUSDT.sol";
 
 address constant feeRecipient = 0x5809D78c0F1F010D2793ae484A20ABFba916D6F2;
-// address constant assetAddress = 0x0fba5f964d91A9DE6237011bDd55aeDd575b3502;
+address constant assetAddress = 0x5d1973662221E0De8E871A34f3986AcB367c20C5;
 
 interface IERC20 {
     function balanceOf(address _owner) external view returns (uint256 balance);
@@ -21,28 +21,18 @@ contract OkTokenDevScript is Script {
     address vaultAddress;
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
     TestUSDT asset;
-    // 0xa8A8554B65622Dc9384B5743B966f1e5Cbf3749A usdt
-    // 0xA8ba682d73a5F3DDE0CeB6A61D59bCaB18054Eb8 okt
-    // 0x1518476E502B459f792C31Cded3DF3445052Fb18 airdrop
-
-    // function setUp() public {
-    //     VmSafe.Wallet memory wallet = vm.createWallet(deployerPrivateKey);
-    //     uint64 nonce = vm.getNonce(wallet.addr);
-    //     vaultAddress = vm.computeCreateAddress(wallet.addr, nonce + 1);
-    //     // uint256 balance = asset.balanceOf(wallet.addr);
-    //     // console.log("balance ", balance);
-    // }
 
     function run() public returns (OKToken token) {
         vm.startBroadcast(deployerPrivateKey);
-        asset = new TestUSDT();
+        // asset = new TestUSDT();
+        asset = TestUSDT(assetAddress);
         VmSafe.Wallet memory wallet = vm.createWallet(deployerPrivateKey);
         uint64 nonce = vm.getNonce(wallet.addr);
         vaultAddress = vm.computeCreateAddress(wallet.addr, nonce + 1);
         asset.approve(vaultAddress, 1 * 1e6);
         // token = new OkTokenVault(address(asset), feeRecipient);
         token = new OKToken(address(asset), 6, feeRecipient);
-        Airdrop _airdrop = new Airdrop(address(asset), feeRecipient);
+        // Airdrop _airdrop = new Airdrop(address(asset), feeRecipient);
         vm.stopBroadcast();
         return token;
     }
