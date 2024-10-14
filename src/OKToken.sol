@@ -162,7 +162,7 @@ contract OKToken is ERC20 {
         return _totalAssets;
     }
 
-    function showDeposit(uint32 id) external view returns (OKDeposit memory) {
+    function showDeposit(uint256 id) external view returns (OKDeposit memory) {
         return _deposits[id];
     }
 

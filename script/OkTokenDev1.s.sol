@@ -23,9 +23,10 @@ contract OkTokenDevScript is Script {
     TestUSDT asset;
 
     function run() public returns (OKToken token) {
+        console.log("deployerPrivateKey %s", deployerPrivateKey);
         vm.startBroadcast(deployerPrivateKey);
-        // asset = new TestUSDT();
-        asset = TestUSDT(assetAddress);
+        asset = new TestUSDT();
+        // asset = TestUSDT(assetAddress);
         VmSafe.Wallet memory wallet = vm.createWallet(deployerPrivateKey);
         uint64 nonce = vm.getNonce(wallet.addr);
         vaultAddress = vm.computeCreateAddress(wallet.addr, nonce + 1);
