@@ -4,16 +4,16 @@ observe connect scene gadget draft waste ribbon thank volcano safe alert ask
 ## Addresses
 ### Contracts
 **Test USDT**:
-0x8Ff472Da0f48EaeA63E6f477F6bCD3Cd9Fa14c31
-[etherscan.io](https://sepolia.etherscan.io/address/0x8Ff472Da0f48EaeA63E6f477F6bCD3Cd9Fa14c31)
+0x1160551a6882874329a895582c79c7c8613e76e0
+[etherscan.io](https://sepolia.etherscan.io/address/0x1160551a6882874329a895582c79c7c8613e76e0)
 
 **OKToken**:
-0xE7B201dBBF143CA845c2dcc99Dc4d88D8FaDAb25
-[etherscan.io](https://sepolia.etherscan.io/address/0xE7B201dBBF143CA845c2dcc99Dc4d88D8FaDAb25)
+0x3c95E41a297286c427Cb8880fA20EFc75c7D3ca4
+[etherscan.io](https://sepolia.etherscan.io/address/0x3c95E41a297286c427Cb8880fA20EFc75c7D3ca4)
 
 **Airdrop**:
-0x3b3e9d4F3d2BC3B6318F22E491241AA8e2B6A91e
-[etherscan.io](https://sepolia.etherscan.io/address/0x3b3e9d4F3d2BC3B6318F22E491241AA8e2B6A91e)
+0x9C54B959a71e11056afEE15F21e78B92129f6F0c
+[etherscan.io](https://sepolia.etherscan.io/address/0x9C54B959a71e11056afEE15F21e78B92129f6F0c)
 
 ### Accounts
 Account #1 - USDT and SepoliaETH holder - 0xE531252e4E83fDec4c33336fb7AF0042e4005789
