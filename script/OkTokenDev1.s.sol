@@ -33,7 +33,7 @@ contract OkTokenDevScript is Script {
         asset.approve(vaultAddress, 1 * 1e6);
         // token = new OkTokenVault(address(asset), feeRecipient);
         token = new OKToken(address(asset), 6, feeRecipient);
-        // Airdrop _airdrop = new Airdrop(address(asset), feeRecipient);
+        Airdrop _airdrop = new Airdrop(address(asset), feeRecipient);
         vm.stopBroadcast();
         return token;
     }
