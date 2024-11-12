@@ -4,16 +4,16 @@ observe connect scene gadget draft waste ribbon thank volcano safe alert ask
 ## Addresses
 ### DEV
 **Test USDT**:
-`0x82267D1BBF2B412691D8409a21D32a7Aa9CaB16e`
-[etherscan.io](https://sepolia.etherscan.io/address/0x82267D1BBF2B412691D8409a21D32a7Aa9CaB16e)
+`0x642Eb4d64Bf59bcF60cDf6747AaA501aDdfb90c1`
+[etherscan.io](https://sepolia.etherscan.io/address/0x642Eb4d64Bf59bcF60cDf6747AaA501aDdfb90c1)
 
 **OKToken**:
-`0x052e1f5eeBDFa22Cce9C118EEfE7C88B5dDF5621`
-[etherscan.io](https://sepolia.etherscan.io/address/0x052e1f5eeBDFa22Cce9C118EEfE7C88B5dDF5621)
+`0x9097C060DE22cDDdFb4c9e1F32372a30C8B0e279`
+[etherscan.io](https://sepolia.etherscan.io/address/0x9097C060DE22cDDdFb4c9e1F32372a30C8B0e279)
 
 **Airdrop**:
-`0xbd26864C6821B5f8623421dda581122f8D4cd19C`
-[etherscan.io](https://sepolia.etherscan.io/address/0xbd26864C6821B5f8623421dda581122f8D4cd19C)
+`0x86A5Bdc13F406a55C0b928A532C58eAb094Cf869`
+[etherscan.io](https://sepolia.etherscan.io/address/0x86A5Bdc13F406a55C0b928A532C58eAb094Cf869)
 
 ### Staging
 **Test USDT**:
@@ -28,12 +28,22 @@ observe connect scene gadget draft waste ribbon thank volcano safe alert ask
 `0x56C2E6c8943E18e799E19d48FE2e72b385d95A1a`
 [etherscan.io](https://sepolia.etherscan.io/address/0x56C2E6c8943E18e799E19d48FE2e72b385d95A1a)
 
+### Production
+**USDT**:
+`0xdAC17F958D2ee523a2206206994597C13D831ec7`
+[etherscan.io](https://etherscan.io/address/0xdAC17F958D2ee523a2206206994597C13D831ec7)
+
+**OKToken**:
+`0x0ED22a50bb3A87046f56D8E503DEAF89113E19fC`
+[etherscan.io](https://etherscan.io/address/0x0ED22a50bb3A87046f56D8E503DEAF89113E19fC)
+
+**Airdrop**:
+Not deployed yet
+
 ### Accounts
 Account #1 - USDT and SepoliaETH holder - 0xE531252e4E83fDec4c33336fb7AF0042e4005789
 
 Account #10 (receives 1% fee) - 0x5809D78c0F1F010D2793ae484A20ABFba916D6F2
-
-
 
 
 ```bash
