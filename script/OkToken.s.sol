@@ -3,13 +3,10 @@ pragma solidity ^0.8.21;
 
 import {Script, console} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
-import {OkTokenVault} from "../src/OkTokenVault.sol";
+import {OKToken} from "../src/OKToken.sol";
 // Mainnet
-address constant feeRecipient = 0x6e6Ea664E482b32019c4d45B639C12E643C3B3b5;
-address constant assetAddress = 0x0fba5f964d91A9DE6237011bDd55aeDd575b3502;
-// SEPOLIA
-// address constant feeRecipient = 0x6e6Ea664E482b32019c4d45B639C12E643C3B3b5;
-// address constant assetAddress = 0x5809D78c0F1F010D2793ae484A20ABFba916D6F2;
+address constant feeRecipient = 0x2396F951f87B5B2D9e591270567eeC3593DECECC;
+address constant assetAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
 
 interface IERC20 {
     function balanceOf(address _owner) external view returns (uint256 balance);
@@ -24,16 +21,15 @@ contract OkTokenScript is Script {
 
     function setUp() public {
         VmSafe.Wallet memory wallet = vm.createWallet(deployerPrivateKey);
-        uint64 nonce = vm.getNonce(wallet.addr);
+        uint64 nonce = vm.getNonce(wallet);
+        console.log("balance ", wallet.addr.balance);
         vaultAddress = vm.computeCreateAddress(wallet.addr, nonce + 1);
-        uint256 balance = asset.balanceOf(wallet.addr);
-        console.log("balance ", balance);
     }
 
-    function run() public returns (OkTokenVault token) {
+    function run() public returns (OKToken token) {
         vm.startBroadcast(deployerPrivateKey);
         asset.approve(vaultAddress, 1 * 1e6);
-        token = new OkTokenVault(assetAddress, feeRecipient);
+        token = new OKToken(assetAddress, 6, feeRecipient);
         vm.stopBroadcast();
     }
 }
