@@ -5,7 +5,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import {Roles} from "./Roles.sol";
 
 contract Airdrop is AccessControl, Ownable {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
