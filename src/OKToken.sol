@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.21;
-// import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20, IERC20Metadata, ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -16,7 +15,6 @@ contract OKToken is ERC20 {
 
     uint256 private constant _MIN_DEPOSIT = 10e6; // 10 USDT
     uint256 private constant _MAX_DEPOSIT = 200_000e6; // 200k USDT
-    // uint256 private constant _LIQUIDATION_POINT = 145; //145% of deposit amount
 
     uint256 private constant _feePercents = 11; // 11.00 % fee, business requirement.
     uint256 private constant _profitPercents = 1; // 1.00 % profit, business requirement.

@@ -5,10 +5,13 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract Airdrop is AccessControl, Ownable {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
+    using SafeERC20 for IERC20;
 
     struct TokenDrop {
         address creator;
@@ -41,22 +44,11 @@ contract Airdrop is AccessControl, Ownable {
 
     constructor(address tokenAddress, address admin) Ownable(admin) {
         _token = IERC20(tokenAddress);
-        // _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
         _grantRole(MINTER_ROLE, admin);
         _setRoleAdmin(MINTER_ROLE, ADMIN_ROLE);
-        // _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
-
-        // transferOwnership(admin);
-        // _setupRole(DEFAULT_ADMIN_ROLE, admin);
     }
-
-    // modifier onlyAdmin() {
-    // bool isAdmin = checkRole(msg.sender, "admin");
-    // require(isAdmin || msg.sender == owner(), "only admin");
-    // _;
-    // }
 
     function isMinter(address account) public view returns (bool) {
         return
@@ -70,12 +62,9 @@ contract Airdrop is AccessControl, Ownable {
         bytes32 root,
         uint256 total
     ) external onlyRole(MINTER_ROLE) {
-        // uint256 reservedTotal = reservedBalance + total;
         require(_token.balanceOf(msg.sender) >= total, "insufficient balance");
         bytes32 nameHash = keccak256(bytes(dropName));
         require(drops[nameHash].creator == address(0), "name already exists");
-        _token.transferFrom(msg.sender, address(this), total);
-
         drops[nameHash] = TokenDrop({
             creator: msg.sender,
             root: root,
@@ -83,7 +72,7 @@ contract Airdrop is AccessControl, Ownable {
             claimed: 0,
             cancelled: false
         });
-        // reservedBalance = reservedTotal;
+        _token.safeTransferFrom(msg.sender, address(this), total);
 
         emit TokenDropCreated(dropName, msg.sender, root, total);
     }
